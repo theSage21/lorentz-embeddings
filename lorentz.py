@@ -47,7 +47,10 @@ class RSGD(optim.Optimizer):
                 p.data.copy_(exp_map(p, -group["learning_rate"] * proj))
 
 
-class Net(nn.Module):
+class Lorentz(nn.Module):
+    """
+    This will embed `n_items` in a `dim` dimensional lorentz space.
+    """
     def __init__(self, n_items, dim, init_range=0.001):
         super().__init__()
         self.n_items = n_items
@@ -61,8 +64,26 @@ class Net(nn.Module):
             self.table.weight[0] = 0  # padding idx
 
     def forward(self, I, Ks):
-        """Given Is and the sampled Ks, the system returns probabilities of
-        nearest neighbor"""
+        """
+        Using the pairwise similarity matrix, generate the following inputs and
+        provide to this function.
+
+        Inputs:
+            - I     :   - long tensor
+                        - size (B,)
+                        - This denotes the `i` used in all equations.
+            - Ks    :   - long tensor
+                        - size (B, N)
+                        - This denotes at max `N` documents which come from the
+                          nearest neighbor sample.
+                        - The `j` document must be the first of the N indices.
+                          This is used to calculate the losses
+        Return:
+            - size (B,)
+            - Ranking loss calculated using
+              document to the given `i` document.
+
+        """
         n_ks = Ks.size()[1]
         ui = torch.stack([self.table(I)]*n_ks, dim=1)
         uks = self.table(Ks)
@@ -73,28 +94,36 @@ class Net(nn.Module):
         dists = torch.exp(-arcosh(-lorentz_scalar_product(ui, uks)))
         # ---------- turn back to per-sample shape
         dists = dists.reshape(B, N)
-        probas = torch.log(dists / (dists.sum(dim=1).unsqueeze(dim=1)))
-        return probas
+        loss = torch.log(dists[:, 0] / dists.sum(dim=1))
+        return loss
 
 
-def N_sample(i, j):
-    min = self.sim_matrix[i, j]
+def N_sample(matrix, i, j, n):
+    """
+    - Matrix    : is a simple pairwise similarity matrix
+    - i         : primary document
+    - j         : secondary document
+    - n         : Sample n items maximum from the matrix
+
+    0 is a padding index
+    """
+    min = matrix[i, j]
     indices = [
         index for index, is_less in enumerate(self.sim_matrix[i] < min) if is_less
-    ] + [j]
-    return indices
+    ][:n]
+    return ([i + 1 for i in [j] + indices] + [0] * n)[:n]
 
 
 if __name__ == "__main__":
-    net = Net(10, 2)
+    net = Lorentz(10, 2)
     r = RSGD(net.parameters())
 
     I = torch.Tensor([1, 2, 2]).long()
     Ks = torch.Tensor([[1, 2, 1, 2],
                        [1, 0, 0, 0],
                        [2, 1, 2, 0]]).long()
-    loss = net(I, Ks) - 1
-    loss = loss.sum()
+    loss = net(I, Ks)
+    loss = loss.mean()
     loss.backward()
 
     r.step()
