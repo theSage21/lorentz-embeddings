@@ -51,6 +51,7 @@ class Lorentz(nn.Module):
     """
     This will embed `n_items` in a `dim` dimensional lorentz space.
     """
+
     def __init__(self, n_items, dim, init_range=0.001):
         super().__init__()
         self.n_items = n_items
@@ -61,7 +62,7 @@ class Lorentz(nn.Module):
         with torch.no_grad():
             dim0 = torch.sqrt(1 + torch.norm(self.table.weight[:, 1:], dim=1))
             self.table.weight[:, 0] = dim0
-            self.table.weight[0] = 0  # padding idx
+            # self.table.weight[0] = 0  # padding idx
 
     def forward(self, I, Ks):
         """
@@ -85,12 +86,12 @@ class Lorentz(nn.Module):
 
         """
         n_ks = Ks.size()[1]
-        ui = torch.stack([self.table(I)]*n_ks, dim=1)
+        ui = torch.stack([self.table(I)] * n_ks, dim=1)
         uks = self.table(Ks)
         # ---------- reshape for calculation
         B, N, D = ui.size()
-        ui = ui.reshape(B*N, D)
-        uks = uks.reshape(B*N, D)
+        ui = ui.reshape(B * N, D)
+        uks = uks.reshape(B * N, D)
         dists = torch.exp(-arcosh(-lorentz_scalar_product(ui, uks)))
         # ---------- turn back to per-sample shape
         dists = dists.reshape(B, N)
@@ -119,9 +120,7 @@ if __name__ == "__main__":
     r = RSGD(net.parameters())
 
     I = torch.Tensor([1, 2, 2]).long()
-    Ks = torch.Tensor([[1, 2, 1, 2],
-                       [1, 0, 0, 0],
-                       [2, 1, 2, 0]]).long()
+    Ks = torch.Tensor([[1, 2, 1, 2], [1, 1, 5, 6], [2, 2, 2, 1]]).long()
     loss = net(I, Ks)
     loss = loss.mean()
     loss.backward()
