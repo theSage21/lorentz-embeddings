@@ -95,7 +95,7 @@ class Lorentz(nn.Module):
         dists = torch.exp(-arcosh(-lorentz_scalar_product(ui, uks)))
         # ---------- turn back to per-sample shape
         dists = dists.reshape(B, N)
-        loss = -torch.log(dists[:, 0] / dists.sum(dim=1))
+        loss = -(dists[:, 0] - torch.log(dists.sum(dim=1)))
         return loss
 
 
