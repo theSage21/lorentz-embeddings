@@ -40,7 +40,7 @@ class RSGD(optim.Optimizer):
                 if p.grad is None:
                     continue
                 B, D = p.size()
-                gl = torch.ones((D, D), device=p.device, dtype=p.dtype)
+                gl = torch.eye(D, device=p.device, dtype=p.dtype)
                 gl[0, 0] = -1
                 h = p.grad.data @ gl  # NOTE: I don't know how this might work out
                 proj = h + lorentz_scalar_product(p, h).unsqueeze(dim=1) * p
@@ -121,8 +121,9 @@ if __name__ == "__main__":
 
     I = torch.Tensor([1, 2, 2]).long()
     Ks = torch.Tensor([[1, 2, 1, 2], [1, 1, 5, 6], [2, 2, 2, 1]]).long()
-    loss = net(I, Ks)
-    loss = loss.mean()
-    loss.backward()
-
-    r.step()
+    for i in range(5):
+        loss = net(I, Ks)
+        loss = loss.mean()
+        loss.backward()
+        print(loss)
+        r.step()
