@@ -30,7 +30,7 @@ def exp_map(x, v):
 
 class RSGD(optim.Optimizer):
     def __init__(self, params, learning_rate=None):
-        learning_rate = learning_rate if learning_rate is not None else 0.1
+        learning_rate = learning_rate if learning_rate is not None else 0.01
         defaults = {"learning_rate": learning_rate}
         super().__init__(params, defaults=defaults)
 
@@ -43,8 +43,18 @@ class RSGD(optim.Optimizer):
                 gl = torch.eye(D, device=p.device, dtype=p.dtype)
                 gl[0, 0] = -1
                 h = p.grad.data @ gl  # NOTE: I don't know how this might work out
-                proj = h + lorentz_scalar_product(p, h).unsqueeze(dim=1) * p
-                p.data.copy_(exp_map(p, -group["learning_rate"] * proj))
+                proj = (
+                    h
+                    - (
+                        lorentz_scalar_product(p, h) / lorentz_scalar_product(p, p)
+                    ).unsqueeze(1)
+                    * p
+                )
+                grad_norm = torch.norm(p.grad.data, dim=1).unsqueeze(1).repeat(1, D)
+                update = torch.where(
+                    grad_norm > 0.0, exp_map(p, -group["learning_rate"] * proj), p
+                )
+                p.data.copy_(update)
 
 
 class Lorentz(nn.Module):
@@ -117,11 +127,11 @@ def N_sample(matrix, i, j, n):
 
 if __name__ == "__main__":
     net = Lorentz(10, 2)
-    r = RSGD(net.parameters())
+    r = RSGD(net.parameters(), learning_rate=0.01)
 
-    I = torch.Tensor([1, 2, 2]).long()
-    Ks = torch.Tensor([[1, 2, 1, 2], [1, 1, 5, 6], [2, 2, 2, 1]]).long()
-    for i in range(5):
+    I = torch.Tensor([1, 4]).long()
+    Ks = torch.Tensor([[2, 3, 4, 5], [5, 9, 2, 8]]).long()
+    for i in range(30):
         loss = net(I, Ks)
         loss = loss.mean()
         loss.backward()
