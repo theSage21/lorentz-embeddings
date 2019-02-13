@@ -92,10 +92,10 @@ class Lorentz(nn.Module):
         B, N, D = ui.size()
         ui = ui.reshape(B * N, D)
         uks = uks.reshape(B * N, D)
-        dists = torch.exp(-arcosh(-lorentz_scalar_product(ui, uks)))
+        dists = -arcosh(-lorentz_scalar_product(ui, uks))
         # ---------- turn back to per-sample shape
         dists = dists.reshape(B, N)
-        loss = -(dists[:, 0] - torch.log(dists.sum(dim=1)))
+        loss = -(dists[:, 0] - torch.log(torch.exp(dists).sum(dim=1)))
         return loss
 
 
