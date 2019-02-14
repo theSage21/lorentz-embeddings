@@ -147,7 +147,9 @@ def insert(n):
     n    : Number of non-leaf node in the binary tree
 
     will output a set of pairs of nodes, which will represent the tree,
-    3<-1->2 will become {(3,1), (2,1)}
+    n = 3 will create a tree 1<-0->2 and will become {(1,0), (2,0)}.
+    we assume that the roon node is 0 and after the inserted sequentially.
+    It can only create complete binary tree correctly so n should be odd number.
     """
     pairs = set()
     for i in range(n):
@@ -158,7 +160,7 @@ def insert(n):
 
 if __name__ == "__main__":
     emb_dim = 2
-    num_nodes = 101
+    num_nodes = 101  # should be odd number
     net = Lorentz(num_nodes, emb_dim + 1)  # as the paper follows R^(n+1) for this space
     r = RSGD(net.parameters(), learning_rate=0.1)
     pairs = insert(num_nodes - (num_nodes + 1) // 2)
