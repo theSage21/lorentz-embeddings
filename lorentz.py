@@ -143,11 +143,12 @@ def N_sample(matrix, i, j, n):
 
 
 if __name__ == "__main__":
-    net = Lorentz(10, 3)
-    r = RSGD(net.parameters(), learning_rate=1)
+    emb_dim = 2
+    net = Lorentz(10, emb_dim + 1)  # as the paper follows R^(n+1) for this space
+    r = RSGD(net.parameters(), learning_rate=0.1)
 
     I = torch.Tensor([1, 2, 3, 4]).long()
-    Ks = torch.Tensor([[2, 3], [4, 5], [6, 7], [8, 9]]).long()
+    Ks = torch.Tensor([[2, 3, 4, 9], [4, 5, 6, 1], [6, 7, 1, 5], [8, 9, 2, 1]]).long()
     for i in range(4000):
         loss, table = net(I, Ks)
         loss = loss.mean()
