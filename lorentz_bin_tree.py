@@ -151,10 +151,10 @@ def insert(n):
     we assume that the roon node is 0 and after the inserted sequentially.
     It can only create complete binary tree correctly so n should be odd number.
     """
-    pairs = set()
+    pairs = list()
     for i in range(n):
-        pairs.add((2 * i + 1, i))
-        pairs.add((2 * i + 2, i))
+        pairs.append((2 * i + 1, i))
+        pairs.append((2 * i + 2, i))
     return pairs
 
 
@@ -164,6 +164,8 @@ if __name__ == "__main__":
     net = Lorentz(num_nodes, emb_dim + 1)  # as the paper follows R^(n+1) for this space
     r = RSGD(net.parameters(), learning_rate=0.1)
     pairs = insert(num_nodes - (num_nodes + 1) // 2)
+    np.random.shuffle(pairs)
+    pairs = set(pairs)
     print(pairs)
     I = []
     Ks = []
@@ -185,15 +187,21 @@ if __name__ == "__main__":
     print(Ks)
     I = torch.tensor(I)
     Ks = torch.tensor(Ks)
-
-    for i in range(10000):
-        loss, table = net(I, Ks)
-        loss = loss.mean()
-        loss.backward()
+    batch_size = 500
+    epoch = 3000
+    for i in range(epoch):
+        loss = 0
+        j = 0
+        while j < len(I):
+            loss_batch, table = net(I[j : j + batch_size], Ks[j : j + batch_size])
+            j += batch_size
+            loss_batch = loss_batch.mean()
+            loss_batch.backward()
+            loss += loss_batch
+            r.step()
         print(loss)
         if torch.isnan(loss) or torch.isinf(loss):
             break
-        r.step()
     table = lorentz_to_poincare(table)
     fig, ax = plt.subplots()
     ax.scatter(*zip(*table))
