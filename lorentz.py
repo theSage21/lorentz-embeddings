@@ -120,6 +120,12 @@ class Lorentz(nn.Module):
         return loss, self.table.weight.data.numpy()
 
 
+def lorentz_to_poincare(table):
+    return table[:, 1:] / (
+        table[:, :1] + 1
+    )  # diffeomorphism transform to poincare ball
+
+
 def N_sample(matrix, i, j, n):
     """
     - Matrix    : is a simple pairwise similarity matrix
@@ -150,10 +156,8 @@ if __name__ == "__main__":
         if torch.isnan(loss) or torch.isinf(loss):
             break
         r.step()
+    table = lorentz_to_poincare(table)
     fig, ax = plt.subplots()
-    table = table[:, 1:] / (
-        table[:, :1] + 1
-    )  # diffeomorphism transform to poincare ball
     ax.scatter(*zip(*table))
     for i, crd in enumerate(table):
         ax.annotate(i, (crd[0], crd[1]))
