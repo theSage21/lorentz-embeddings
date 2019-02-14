@@ -42,7 +42,10 @@ class RSGD(optim.Optimizer):
                 B, D = p.size()
                 gl = torch.eye(D, device=p.device, dtype=p.dtype)
                 gl[0, 0] = -1
-                h = p.grad.data @ gl  # NOTE: I don't know how this might work out
+                grad_norm = torch.norm(p.grad.data)
+                h = (
+                    p.grad.data / grad_norm
+                ) @ gl  # NOTE: I don't know how this might work out
                 proj = (
                     h
                     - (
@@ -54,6 +57,10 @@ class RSGD(optim.Optimizer):
                 update = torch.where(
                     grad_norm > 0.0, exp_map(p, -group["learning_rate"] * proj), p
                 )
+                is_nan_inf = torch.isnan(update) | torch.isinf(update)
+                update = torch.where(is_nan_inf, p, update)
+                dim0 = torch.sqrt(1 + torch.norm(update[:, 1:], dim=1))
+                update[:, 0] = dim0
                 p.data.copy_(update)
 
 
@@ -127,13 +134,15 @@ def N_sample(matrix, i, j, n):
 
 if __name__ == "__main__":
     net = Lorentz(10, 2)
-    r = RSGD(net.parameters(), learning_rate=0.01)
+    r = RSGD(net.parameters(), learning_rate=1)
 
-    I = torch.Tensor([1, 4]).long()
-    Ks = torch.Tensor([[2, 3, 4, 5], [5, 9, 2, 8]]).long()
-    for i in range(30):
+    I = torch.Tensor([1, 4, 5, 9]).long()
+    Ks = torch.Tensor([[2, 3, 4, 5], [5, 9, 2, 8], [1, 2, 9, 6], [5, 6, 7, 4]]).long()
+    for i in range(4000):
         loss = net(I, Ks)
         loss = loss.mean()
         loss.backward()
         print(loss)
+        if torch.isnan(loss) or torch.isinf(loss):
+            break
         r.step()
