@@ -140,10 +140,10 @@ if __name__ == "__main__":
     net = Lorentz(10, 2)
     r = RSGD(net.parameters(), learning_rate=1)
 
-    parent = torch.Tensor([1, 2, 3, 4]).long()
-    children = torch.Tensor([[2, 3], [4, 5], [6, 7], [8, 9]]).long()
+    I = torch.Tensor([1, 2, 3, 4]).long()
+    Ks = torch.Tensor([[2, 3], [4, 5], [6, 7], [8, 9]]).long()
     for i in range(4000):
-        loss, table = net(parent, children)
+        loss, table = net(I, Ks)
         loss = loss.mean()
         loss.backward()
         print(loss)
@@ -152,7 +152,6 @@ if __name__ == "__main__":
         r.step()
     # fig, ax = plt.subplots()
     # ax.scatter(*zip(*table))
-
     # for i, crd in enumerate(table):
     #     ax.annotate(i, (crd[0], crd[1]))
     # plt.scatter(*zip(*table))
