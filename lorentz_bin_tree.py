@@ -72,7 +72,7 @@ class Lorentz(nn.Module):
         super().__init__()
         self.n_items = n_items
         self.dim = dim
-        self.table = nn.Embedding(n_items + 1, dim, padding_idx=0)
+        self.table = nn.Embedding(n_items, dim)
         nn.init.uniform_(self.table.weight, -init_range, init_range)
         # equation 6
         with torch.no_grad():
@@ -143,16 +143,16 @@ def N_sample(matrix, i, j, n):
 
 
 def insert(n):
-    pairs = []
+    pairs = set()
     for i in range(n):
-        pairs.append([i, 2 * i + 1])
-        pairs.append([i, 2 * i + 2])
+        pairs.add((2 * i + 1, i))
+        pairs.add((2 * i + 2, i))
     return pairs
 
 
 if __name__ == "__main__":
     emb_dim = 2
-    num_nodes = 10
+    num_nodes = 21
     net = Lorentz(num_nodes, emb_dim + 1)  # as the paper follows R^(n+1) for this space
     r = RSGD(net.parameters(), learning_rate=0.1)
     pairs = insert(num_nodes - (num_nodes + 1) // 2)
@@ -163,11 +163,11 @@ if __name__ == "__main__":
     for x, y in pairs:
         I.append(x)
         temp_Ks = [y]
-        temp = np.random.permutation(arange)[: (num_nodes + 1) // 2]
+        temp = np.random.permutation(arange)
         for _ in temp:
-            if _ != y:
+            if (x, _) not in pairs and _ != x:
                 temp_Ks.append(_)
-            if len(temp_Ks) == 3:
+            if len(temp_Ks) == 5:
                 break
         Ks.append(temp_Ks)
     print(I)
