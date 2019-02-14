@@ -3,6 +3,7 @@ import random
 import numpy as np
 from torch import nn
 from torch import optim
+import matplotlib.pyplot as plt
 
 
 def arcosh(x):
@@ -24,7 +25,9 @@ def tangent_norm(x):
 def exp_map(x, v):
     # BD, BD -> BD
     tn = tangent_norm(v).unsqueeze(dim=1)
+    tn_expand = tn.repeat(1, x.size()[-1])
     result = torch.cosh(tn) * x + torch.sinh(tn) * (v / tn)
+    result = torch.where(tn_expand > 0, result, x)
     return result
 
 
@@ -43,9 +46,7 @@ class RSGD(optim.Optimizer):
                 gl = torch.eye(D, device=p.device, dtype=p.dtype)
                 gl[0, 0] = -1
                 grad_norm = torch.norm(p.grad.data)
-                h = (
-                    p.grad.data / grad_norm
-                ) @ gl  # NOTE: I don't know how this might work out
+                h = (p.grad.data / grad_norm) @ gl
                 proj = (
                     h
                     - (
@@ -54,9 +55,7 @@ class RSGD(optim.Optimizer):
                     * p
                 )
                 grad_norm = torch.norm(p.grad.data, dim=1).unsqueeze(1).repeat(1, D)
-                update = torch.where(
-                    grad_norm > 0.0, exp_map(p, -group["learning_rate"] * proj), p
-                )
+                update = exp_map(p, -group["learning_rate"] * proj)
                 is_nan_inf = torch.isnan(update) | torch.isinf(update)
                 update = torch.where(is_nan_inf, p, update)
                 dim0 = torch.sqrt(1 + torch.norm(update[:, 1:], dim=1))
@@ -109,11 +108,17 @@ class Lorentz(nn.Module):
         B, N, D = ui.size()
         ui = ui.reshape(B * N, D)
         uks = uks.reshape(B * N, D)
-        dists = -arcosh(-lorentz_scalar_product(ui, uks))
+        dists = -lorentz_scalar_product(ui, uks)
+        eps = 1 - dists
+        dists = torch.where(eps < 1e-2, dists, torch.ones_like(dists))
+        # sometimes 2 embedding can come very close in R^D.
+        # when calculating the lorenrz inner product,
+        # -1 can become -0.99, then arcosh will become nan
+        dists = -arcosh(dists)
         # ---------- turn back to per-sample shape
         dists = dists.reshape(B, N)
         loss = -(dists[:, 0] - torch.log(torch.exp(dists).sum(dim=1) + 1e-6))
-        return loss
+        return loss, self.table.weight.data.numpy()
 
 
 def N_sample(matrix, i, j, n):
@@ -136,13 +141,20 @@ if __name__ == "__main__":
     net = Lorentz(10, 2)
     r = RSGD(net.parameters(), learning_rate=1)
 
-    I = torch.Tensor([1, 4, 5, 9]).long()
-    Ks = torch.Tensor([[2, 3, 4, 5], [5, 9, 2, 8], [1, 2, 9, 6], [5, 6, 7, 4]]).long()
+    parent = torch.Tensor([1, 2, 3, 4]).long()
+    children = torch.Tensor([[2, 3], [4, 5], [6, 7], [8, 9]]).long()
     for i in range(4000):
-        loss = net(I, Ks)
+        loss, table = net(parent, children)
         loss = loss.mean()
         loss.backward()
         print(loss)
         if torch.isnan(loss) or torch.isinf(loss):
             break
         r.step()
+    # fig, ax = plt.subplots()
+    # ax.scatter(*zip(*table))
+
+    # for i, crd in enumerate(table):
+    #     ax.annotate(i, (crd[0], crd[1]))
+    # plt.scatter(*zip(*table))
+    # plt.show()
