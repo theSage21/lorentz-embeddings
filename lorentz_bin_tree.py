@@ -143,6 +143,12 @@ def N_sample(matrix, i, j, n):
 
 
 def insert(n):
+    """
+    n    : Number of non-leaf node in the binary tree
+
+    will output a set of pairs of nodes, which will represent the tree,
+    3<-1->2 will become {(3,1), (2,1)}
+    """
     pairs = set()
     for i in range(n):
         pairs.add((2 * i + 1, i))
@@ -152,7 +158,7 @@ def insert(n):
 
 if __name__ == "__main__":
     emb_dim = 2
-    num_nodes = 21
+    num_nodes = 101
     net = Lorentz(num_nodes, emb_dim + 1)  # as the paper follows R^(n+1) for this space
     r = RSGD(net.parameters(), learning_rate=0.1)
     pairs = insert(num_nodes - (num_nodes + 1) // 2)
@@ -162,12 +168,15 @@ if __name__ == "__main__":
     arange = np.arange(0, num_nodes)
     for x, y in pairs:
         I.append(x)
-        temp_Ks = [y]
+        temp_Ks = [y]  # keep the parent in the begining
         temp = np.random.permutation(arange)
         for _ in temp:
             if (x, _) not in pairs and _ != x:
+                # make sure there is not edge between _ -> x
                 temp_Ks.append(_)
-            if len(temp_Ks) == 5:
+            if (
+                len(temp_Ks) == 5
+            ):  # sample size of 5, the minimum value of this will depend on num_nodes
                 break
         Ks.append(temp_Ks)
     print(I)
@@ -175,7 +184,7 @@ if __name__ == "__main__":
     I = torch.tensor(I)
     Ks = torch.tensor(Ks)
 
-    for i in range(4000):
+    for i in range(10000):
         loss, table = net(I, Ks)
         loss = loss.mean()
         loss.backward()
