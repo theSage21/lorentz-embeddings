@@ -27,7 +27,7 @@ def exp_map(x, v):
     tn = tangent_norm(v).unsqueeze(dim=1)
     tn_expand = tn.repeat(1, x.size()[-1])
     result = torch.cosh(tn) * x + torch.sinh(tn) * (v / tn)
-    result = torch.where(tn_expand > 0, result, x)
+    result = torch.where(tn_expand > 0, result, x)  # only update if tangent norm is > 0
     return result
 
 
@@ -137,7 +137,7 @@ def N_sample(matrix, i, j, n):
 
 
 if __name__ == "__main__":
-    net = Lorentz(10, 2)
+    net = Lorentz(10, 3)
     r = RSGD(net.parameters(), learning_rate=1)
 
     I = torch.Tensor([1, 2, 3, 4]).long()
@@ -150,9 +150,12 @@ if __name__ == "__main__":
         if torch.isnan(loss) or torch.isinf(loss):
             break
         r.step()
-    # fig, ax = plt.subplots()
-    # ax.scatter(*zip(*table))
-    # for i, crd in enumerate(table):
-    #     ax.annotate(i, (crd[0], crd[1]))
-    # plt.scatter(*zip(*table))
-    # plt.show()
+    fig, ax = plt.subplots()
+    table = table[:, 1:] / (
+        table[:, :1] + 1
+    )  # diffeomorphism transform to poincare ball
+    ax.scatter(*zip(*table))
+    for i, crd in enumerate(table):
+        ax.annotate(i, (crd[0], crd[1]))
+    plt.scatter(*zip(*table))
+    plt.show()
