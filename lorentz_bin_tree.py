@@ -147,7 +147,7 @@ def insert(n):
     n    : Number of non-leaf node in the binary tree
 
     will output a set of pairs of nodes, which will represent the tree,
-    n = 3 will create a tree 1<-0->2 and will become {(1,0), (2,0)}.
+    n = 3 will create a tree 1<-0->2 and will become {(1,0), (2,0)}. (child, parent).
     we assume that the roon node is 0 and after the inserted sequentially.
     It can only create complete binary tree correctly so n should be odd number.
     """
@@ -171,6 +171,11 @@ if __name__ == "__main__":
     Ks = []
     arange = np.arange(0, num_nodes)
     for x, y in pairs:
+        # we have to parent prediction for binary tree, because if
+        # we have a tree like 1<-0->2 if we do child prediction a comflict arises.
+        # for 0 we have to predict 1, AND 2!! So for I = 0, Ks will have to be
+        # [1, 2] and [2, 1], this creates a conflict. Doing parent prediction is easier
+        # because for I = 1 Ks can be [0, 2]! No comflicts
         I.append(x)
         temp_Ks = [y]  # keep the parent in the begining
         temp = np.random.permutation(arange)
@@ -188,7 +193,7 @@ if __name__ == "__main__":
     I = torch.tensor(I)
     Ks = torch.tensor(Ks)
     batch_size = 500
-    epoch = 3000
+    epoch = 4000
     for i in range(epoch):
         loss = 0
         j = 0
