@@ -150,6 +150,13 @@ def insert(n):
     n = 3 will create a tree 1<-0->2 and will become {(1,0), (2,0)}. (child, parent).
     we assume that the roon node is 0 and after the inserted sequentially.
     It can only create complete binary tree correctly so n should be odd number.
+    for n = 5,
+        0
+       / \
+      1   2
+     / \
+    3   4
+    output will be {(2, 0), (1, 0), (3, 1), (4, 1)}
     """
     pairs = list()
     for i in range(n):
@@ -172,10 +179,10 @@ if __name__ == "__main__":
     arange = np.arange(0, num_nodes)
     for x, y in pairs:
         # we have to parent prediction for binary tree, because if
-        # we have a tree like 1<-0->2 if we do child prediction a comflict arises.
+        # we have a tree like 1<-0->2 if we do child prediction a conflict arises.
         # for 0 we have to predict 1, AND 2!! So for I = 0, Ks will have to be
         # [1, 2] and [2, 1], this creates a conflict. Doing parent prediction is easier
-        # because for I = 1 Ks can be [0, 2]! No comflicts
+        # because for I = 1 Ks can be [0, 2]! No conflicts
         I.append(x)
         temp_Ks = [y]  # keep the parent in the begining
         temp = np.random.permutation(arange)
