@@ -1,9 +1,14 @@
+import os
+import io
 import torch
 import random
 import numpy as np
 from torch import nn
 from torch import optim
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+plt.style.use('ggplot')
 
 
 def arcosh(x):
@@ -165,6 +170,20 @@ def insert(n):
     return pairs
 
 
+def dikhaao(table, loss):
+    table = lorentz_to_poincare(table)
+    fig, ax = plt.subplots()
+    ax.scatter(*zip(*table))
+    # for i, crd in enumerate(table):
+        # ax.annotate(i, (crd[0], crd[1]))
+    plt.scatter(*zip(*table))
+    plt.title(str(loss))
+    ax.set_xlim(-1, 1)
+    ax.set_ylim(-1, 1)
+    images = list(os.listdir('images'))
+    plt.savefig(f'images/{len(images)}.svg')
+
+
 if __name__ == "__main__":
     emb_dim = 2
     num_nodes = 101  # should be odd number
@@ -201,7 +220,7 @@ if __name__ == "__main__":
     Ks = torch.tensor(Ks)
     batch_size = 500
     epoch = 4000
-    for i in range(epoch):
+    for epoch in range(epoch):
         loss = 0
         j = 0
         while j < len(I):
@@ -211,13 +230,8 @@ if __name__ == "__main__":
             loss_batch.backward()
             loss += loss_batch
             r.step()
+        if epoch % 10 == 0:
+            dikhaao(table, loss)
         print(loss)
         if torch.isnan(loss) or torch.isinf(loss):
             break
-    table = lorentz_to_poincare(table)
-    fig, ax = plt.subplots()
-    ax.scatter(*zip(*table))
-    for i, crd in enumerate(table):
-        ax.annotate(i, (crd[0], crd[1]))
-    plt.scatter(*zip(*table))
-    plt.show()
