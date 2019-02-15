@@ -10,6 +10,7 @@ squad-df = "*"
 numpy = "*"
 scipy = "*"
 sklearn = "*"
+matplotlib = "*"
 
 [dev-packages]
 

@@ -1,9 +1,15 @@
+import os
+import io
 import torch
 import random
 import numpy as np
 from torch import nn
 from torch import optim
-# import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
+plt.style.use('ggplot')
 
 
 def arcosh(x):
@@ -72,7 +78,7 @@ class Lorentz(nn.Module):
         super().__init__()
         self.n_items = n_items
         self.dim = dim
-        self.table = nn.Embedding(n_items + 1, dim, padding_idx=0)
+        self.table = nn.Embedding(n_items, dim)
         nn.init.uniform_(self.table.weight, -init_range, init_range)
         # equation 6
         with torch.no_grad():
@@ -142,25 +148,91 @@ def N_sample(matrix, i, j, n):
     return ([i + 1 for i in [j] + indices] + [0] * n)[:n]
 
 
+def insert(n):
+    """
+    n    : Number of non-leaf node in the binary tree
+
+    will output a set of pairs of nodes, which will represent the tree,
+    n = 3 will create a tree 1<-0->2 and will become {(1,0), (2,0)}. (child, parent).
+    we assume that the roon node is 0 and after the inserted sequentially.
+    It can only create complete binary tree correctly so n should be odd number.
+    for n = 5,
+        0
+       / \
+      1   2
+     / \
+    3   4
+    output will be {(2, 0), (1, 0), (3, 1), (4, 1)}
+    """
+    pairs = list()
+    for i in range(n):
+        pairs.append((2 * i + 1, i))
+        pairs.append((2 * i + 2, i))
+    return pairs
+
+
+def dikhaao(table, loss, epoch):
+    table = lorentz_to_poincare(table)
+    layers = []
+    n_nodes = len(table)
+    plt.figure(figsize=(10, 7))
+    while sum([1 for layer in layers for node in layer]) < n_nodes:
+        limit = 2**len(layers)
+        layers.append(table[:limit])
+        table = table[limit:]
+        plt.scatter(*zip(*layers[-1]), label=f'Layer {len(layers) - 1}')
+    plt.title(f'{epoch}: N Nodes {n_nodes} Loss {float(loss)}')
+    plt.legend()
+    images = list(os.listdir('images'))
+    plt.savefig(f'images/{len(images)}.svg')
+
+
 if __name__ == "__main__":
     emb_dim = 2
-    net = Lorentz(10, emb_dim + 1)  # as the paper follows R^(n+1) for this space
+    num_nodes = 101  # should be odd number
+    net = Lorentz(num_nodes, emb_dim + 1)  # as the paper follows R^(n+1) for this space
     r = RSGD(net.parameters(), learning_rate=0.1)
-
-    I = torch.Tensor([1, 2, 3, 4]).long()
-    Ks = torch.Tensor([[2, 3, 4, 9], [4, 5, 6, 1], [6, 7, 1, 5], [8, 9, 2, 1]]).long()
-    for i in range(4000):
-        loss, table = net(I, Ks)
-        loss = loss.mean()
-        loss.backward()
+    pairs = insert(num_nodes - (num_nodes + 1) // 2)
+    np.random.shuffle(pairs)
+    pairs = set(pairs)
+    print(pairs)
+    I = []
+    Ks = []
+    arange = np.arange(0, num_nodes)
+    for x, y in pairs:
+        # we have to parent prediction for binary tree, because if
+        # we have a tree like 1<-0->2 if we do child prediction a conflict arises.
+        # for 0 we have to predict 1, AND 2!! So for I = 0, Ks will have to be
+        # [1, 2] and [2, 1], this creates a conflict. Doing parent prediction is easier
+        # because for I = 1 Ks can be [0, 2]! No conflicts
+        I.append(x)
+        temp_Ks = [y]  # keep the parent in the begining
+        temp = np.random.permutation(arange)
+        for _ in temp:
+            if (x, _) not in pairs and _ != x:
+                # make sure there is not edge between _ -> x
+                temp_Ks.append(_)
+            if (
+                len(temp_Ks) == 5
+            ):  # sample size of 5, the minimum value of this will depend on num_nodes
+                break
+        Ks.append(temp_Ks)
+    I = torch.tensor(I)
+    Ks = torch.tensor(Ks)
+    batch_size = 500
+    epoch = 4000
+    for epoch in range(epoch):
+        loss = 0
+        j = 0
+        while j < len(I):
+            loss_batch, table = net(I[j : j + batch_size], Ks[j : j + batch_size])
+            j += batch_size
+            loss_batch = loss_batch.mean()
+            loss_batch.backward()
+            loss += loss_batch
+            r.step()
+        if epoch % 10 == 0:
+            dikhaao(table, loss, epoch)
         print(loss)
         if torch.isnan(loss) or torch.isinf(loss):
             break
-        r.step()
-    table = lorentz_to_poincare(table)
-    fig, ax = plt.subplots()
-    ax.scatter(*zip(*table))
-    for i, crd in enumerate(table):
-        ax.annotate(i, (crd[0], crd[1]))
-    plt.scatter(*zip(*table))
-    plt.show()
