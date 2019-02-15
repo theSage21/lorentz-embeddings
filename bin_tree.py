@@ -8,6 +8,7 @@ from torch import optim
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+
 plt.style.use('ggplot')
 
 
@@ -170,16 +171,18 @@ def insert(n):
     return pairs
 
 
-def dikhaao(table, loss):
+def dikhaao(table, loss, epoch):
     table = lorentz_to_poincare(table)
-    fig, ax = plt.subplots()
-    ax.scatter(*zip(*table))
-    # for i, crd in enumerate(table):
-        # ax.annotate(i, (crd[0], crd[1]))
-    plt.scatter(*zip(*table))
-    plt.title(str(loss))
-    ax.set_xlim(-1, 1)
-    ax.set_ylim(-1, 1)
+    layers = []
+    n_nodes = len(table)
+    plt.figure(figsize=(10, 7))
+    while sum([1 for layer in layers for node in layer]) < n_nodes:
+        limit = 2**len(layers)
+        layers.append(table[:limit])
+        table = table[limit:]
+        plt.scatter(*zip(*layers[-1]), label=f'Layer {len(layers) - 1}')
+    plt.title(f'{epoch}: N Nodes {n_nodes} Loss {float(loss)}')
+    plt.legend()
     images = list(os.listdir('images'))
     plt.savefig(f'images/{len(images)}.svg')
 
@@ -214,8 +217,6 @@ if __name__ == "__main__":
             ):  # sample size of 5, the minimum value of this will depend on num_nodes
                 break
         Ks.append(temp_Ks)
-    print(I)
-    print(Ks)
     I = torch.tensor(I)
     Ks = torch.tensor(Ks)
     batch_size = 500
@@ -231,7 +232,7 @@ if __name__ == "__main__":
             loss += loss_batch
             r.step()
         if epoch % 10 == 0:
-            dikhaao(table, loss)
+            dikhaao(table, loss, epoch)
         print(loss)
         if torch.isnan(loss) or torch.isinf(loss):
             break
