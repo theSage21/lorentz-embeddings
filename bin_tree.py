@@ -6,6 +6,7 @@ import numpy as np
 from torch import nn
 from torch import optim
 import matplotlib
+from tqdm import tqdm
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
@@ -185,11 +186,12 @@ def dikhaao(table, loss, epoch):
     plt.legend()
     images = list(os.listdir('images'))
     plt.savefig(f'images/{len(images)}.svg')
+    plt.close()
 
 
 if __name__ == "__main__":
     emb_dim = 2
-    num_nodes = 101  # should be odd number
+    num_nodes = 1001  # should be odd number
     net = Lorentz(num_nodes, emb_dim + 1)  # as the paper follows R^(n+1) for this space
     r = RSGD(net.parameters(), learning_rate=0.1)
     pairs = insert(num_nodes - (num_nodes + 1) // 2)
@@ -219,20 +221,23 @@ if __name__ == "__main__":
         Ks.append(temp_Ks)
     I = torch.tensor(I)
     Ks = torch.tensor(Ks)
-    batch_size = 500
-    epoch = 4000
-    for epoch in range(epoch):
-        loss = 0
-        j = 0
-        while j < len(I):
-            loss_batch, table = net(I[j : j + batch_size], Ks[j : j + batch_size])
-            j += batch_size
-            loss_batch = loss_batch.mean()
-            loss_batch.backward()
-            loss += loss_batch
-            r.step()
-        if epoch % 10 == 0:
-            dikhaao(table, loss, epoch)
-        print(loss)
-        if torch.isnan(loss) or torch.isinf(loss):
-            break
+    batch_size = 1000
+    epochs = 40_00_00_000
+    with tqdm(total=epochs) as pbar:
+        for epoch in range(epochs):
+            loss = 0
+            j = 0
+            while j < len(I):
+                loss_batch, table = net(I[j : j + batch_size], Ks[j : j + batch_size])
+                j += batch_size
+                loss_batch = loss_batch.mean()
+                loss_batch.backward()
+                loss += loss_batch
+                r.step()
+            if epoch % 10 == 0:
+                dikhaao(table, loss, epoch)
+            pbar.set_description(f'{epoch}  :   {float(loss)}')
+            pbar.update(1)
+            if torch.isnan(loss) or torch.isinf(loss):
+                print('NAN / Inf')
+                break
