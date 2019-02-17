@@ -12,6 +12,8 @@ scipy = "*"
 sklearn = "*"
 matplotlib = "*"
 pre-commit = "*"
+tensorflow = "*"
+tensorboardx = "*"
 
 [dev-packages]
 

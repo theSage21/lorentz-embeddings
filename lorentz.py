@@ -4,6 +4,7 @@ import numpy as np
 from torch import nn
 from torch import optim
 from tqdm import trange, tqdm
+from tensorboardX import SummaryWriter
 from torch.utils.data import Dataset, DataLoader
 
 
@@ -144,7 +145,7 @@ class Graph(Dataset):
         return self.n_items
 
     def __getitem__(self, i):
-        I = torch.Tensor([i]).long()
+        I = torch.Tensor([i]).squeeze().long()
         while True:
             j = random.randint(0, self.n_items - 1)
             if j != i:
@@ -184,28 +185,37 @@ if __name__ == "__main__":
         "-n_items", help="How many items to embed?", default=None, type=int
     )
     parser.add_argument("-learning_rate", help="RSGD learning rate", default=0.1)
+    parser.add_argument("-log_step", help="Log at what multiple of epochs?", default=1)
     args = parser.parse_args()
+    # ----------------------------------- get the correct matrix
     fl, obj = args.dataset.split(":")
 
     exec(f"from {fl} import {obj} as pairwise")
     args.n_items = len(pairwise) if args.n_items is None else args.n_items
     pairwise = pairwise[: args.n_items, : args.n_items]
+    # ---------------------------------- Generate the proper objects
 
-    dataloader = DataLoader(Graph(pairwise, args.sample_size), shuffle=args.shuffle)
+    dataloader = DataLoader(
+        Graph(pairwise, args.sample_size),
+        shuffle=args.shuffle,
+        batch_size=args.batch_size,
+    )
     net = Lorentz(
         args.n_items, args.poincare_dim + 1
     )  # as the paper follows R^(n+1) for this space
     rsgd = RSGD(net.parameters(), learning_rate=args.learning_rate)
+    writer = SummaryWriter(f"logs/{args.dataset}")
 
-    for i in trange(args.epochs, desc="Epochs"):
+    for epoch in trange(args.epochs, desc="Epochs", ncols=80):
         with tqdm(ncols=80) as pbar:
-            for I, Ks in tqdm(dataloader):
+            for I, Ks in dataloader:
                 rsgd.zero_grad()
-                loss, table = net(I, Ks)
+                loss = net(I, Ks)
                 loss = loss.mean()
                 loss.backward()
                 rsgd.step()
                 pbar.set_description(f"Batch Loss: {float(loss)}")
                 if torch.isnan(loss) or torch.isinf(loss):
                     break
+            writer.add_scalar("loss", loss, epoch)
             table = net.lorentz_to_poincare()
