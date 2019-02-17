@@ -143,26 +143,25 @@ class Graph(Dataset):
         self.pairwise_matrix = pairwise_matrix
         self.n_items = len(pairwise_matrix)
         self.sample_size = sample_size
+        self.arange = np.arange(0, self.n_items)
 
     def __len__(self):
         return self.n_items
 
     def __getitem__(self, i):
-        I = torch.Tensor([i]).squeeze().long()
-        while True:
-            j = random.randint(0, self.n_items - 1)
-            if j != i:
+        I = torch.Tensor([i + 1]).squeeze().long()
+        for j in np.random.permutation(self.arange):
+            if self.pairwise_matrix[i, j] > 0:  # assuming no self loop
                 break
         min = self.pairwise_matrix[i, j]
-        indices = [
-            index
-            for index, is_less in enumerate(self.pairwise_matrix[i] < min)
-            if is_less
-        ][: self.sample_size]
-        # offset indices by 1 and pad with 0
+        arange = np.random.permutation(self.arange)
+        indices = [x for x in arange if self.pairwise_matrix[i, x] < min][
+            : self.sample_size
+        ]
         Ks = ([i + 1 for i in [j] + indices] + [0] * self.sample_size)[
             : self.sample_size
         ]
+        # print(I, Ks)
         return I, torch.Tensor(Ks).long()
 
 

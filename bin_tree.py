@@ -1,7 +1,7 @@
 import numpy as np
 
 
-N = 101
+N = 5
 mat = np.zeros((N, N))
 print(mat.shape)
 for i in range(N):
@@ -10,3 +10,4 @@ for i in range(N):
         break
     mat[i, j] = 1
     mat[i, j + 1] = 1
+print(mat)
