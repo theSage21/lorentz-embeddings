@@ -158,13 +158,13 @@ class Graph(Dataset):
 
     def __getitem__(self, i):
         I = torch.Tensor([i + 1]).squeeze().long()
-        has_child = False
+        has_child = self.pairwise_matrix[i].sum() > 0
         arange = np.random.permutation(self.arange)
-        for j in arange:
-            if self.pairwise_matrix[i, j] > 0:  # assuming no self loop
-                has_child = True
-                break
-        if not has_child:  # if no child go for parent
+        if has_child:
+            for j in arange:
+                if self.pairwise_matrix[i, j] > 0:  # assuming no self loop
+                    break
+        else:  # if no child go for parent
             for j in arange:
                 if self.pairwise_matrix[j, i] > 0:  # assuming no disconneted nodes
                     break
