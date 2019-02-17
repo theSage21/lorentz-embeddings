@@ -1,7 +1,7 @@
 import numpy as np
 
 
-N = 1001
+N = 101
 mat = np.zeros((N, N))
 print(mat.shape)
 for i in range(N):

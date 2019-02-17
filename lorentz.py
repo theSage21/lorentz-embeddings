@@ -58,6 +58,8 @@ class RSGD(optim.Optimizer):
                 gl = torch.eye(D, device=p.device, dtype=p.dtype)
                 gl[0, 0] = -1
                 grad_norm = torch.norm(p.grad.data)
+                grad_norm = torch.where(grad_norm > 1, grad_norm, torch.tensor(1.0))
+                # only normalize if global grad_norm is more than 1
                 h = (p.grad.data / grad_norm) @ gl
                 proj = (
                     h
@@ -119,7 +121,7 @@ class Lorentz(nn.Module):
         ui = ui.reshape(B * N, D)
         uks = uks.reshape(B * N, D)
         dists = -lorentz_scalar_product(ui, uks)
-        dists = torch.where(dists < 1, torch.ones_like(dists), dists)
+        dists = torch.where(dists <= 1, torch.ones_like(dists) + 1e-6, dists)
         # sometimes 2 embedding can come very close in R^D.
         # when calculating the lorenrz inner product,
         # -1 can become -0.99(no idea!), then arcosh will become nan
