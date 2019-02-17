@@ -1,3 +1,4 @@
+import os
 import torch
 import random
 import numpy as np
@@ -201,8 +202,11 @@ if __name__ == "__main__":
     )
     parser.add_argument("-learning_rate", help="RSGD learning rate", default=0.1)
     parser.add_argument("-log_step", help="Log at what multiple of epochs?", default=1)
+    parser.add_argument("-logdir", help="What folder to put logs in", default="runs")
     args = parser.parse_args()
     # ----------------------------------- get the correct matrix
+    if not os.path.exists(args.logdir):
+        os.mkdir(args.logdir)
     fl, obj = args.dataset.split(":")
 
     exec(f"from {fl} import {obj} as pairwise")
@@ -219,7 +223,7 @@ if __name__ == "__main__":
         args.n_items, args.poincare_dim + 1
     )  # as the paper follows R^(n+1) for this space
     rsgd = RSGD(net.parameters(), learning_rate=args.learning_rate)
-    writer = SummaryWriter(f"logs/{args.dataset}  {datetime.utcnow()}")
+    writer = SummaryWriter(f"{args.logdir}/{args.dataset}  {datetime.utcnow()}")
 
     for epoch in trange(args.epochs, desc="Epochs", ncols=80):
         with tqdm(ncols=80) as pbar:

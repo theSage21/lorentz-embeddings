@@ -10,7 +10,6 @@ Usage
 Binary tree embedding and visualization.
 
 ```bash
-mkdir logs
 python lorentz.py bin_tree:mat  # run binary tree
 python lorentz.py --help
 ```
@@ -22,4 +21,4 @@ called `mat`. Let's say your file also calls the matrix `mat`.
 
 Now you can simply call `python lorentz.py mygraph:mat` to embed your graph.
 
-You can use tensorboard to watch the progress.
+You can use tensorboard to watch the progress with `tensorboard --logdir runs`.
