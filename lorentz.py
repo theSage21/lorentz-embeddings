@@ -65,6 +65,8 @@ class RSGD(optim.Optimizer):
                 gl = torch.eye(D, device=p.device, dtype=p.dtype)
                 gl[0, 0] = -1
                 grad_norm = torch.norm(p.grad.data)
+                grad_norm = torch.where(grad_norm > 1, grad_norm, torch.tensor(1.0))
+                # only normalize if global grad_norm is more than 1
                 h = (p.grad.data / grad_norm) @ gl
                 proj = (
                     h
@@ -78,6 +80,7 @@ class RSGD(optim.Optimizer):
                 is_nan_inf = torch.isnan(update) | torch.isinf(update)
                 update = torch.where(is_nan_inf, p, update)
                 update = set_dim0(update)
+                update[0, :] = p[0, :]  # no love for embedding
                 p.data.copy_(update)
 
 
@@ -94,8 +97,8 @@ class Lorentz(nn.Module):
         nn.init.uniform_(self.table.weight, -init_range, init_range)
         # equation 6
         with torch.no_grad():
+            self.table.weight[0] = 5  # padding idx push it to corner
             set_dim0(self.table.weight)
-            # self.table.weight[0] = 0  # padding idx
 
     def forward(self, I, Ks):
         """
@@ -126,7 +129,7 @@ class Lorentz(nn.Module):
         ui = ui.reshape(B * N, D)
         uks = uks.reshape(B * N, D)
         dists = -lorentz_scalar_product(ui, uks)
-        dists = torch.where(dists < 1, torch.ones_like(dists), dists)
+        dists = torch.where(dists <= 1, torch.ones_like(dists) + 1e-6, dists)
         # sometimes 2 embedding can come very close in R^D.
         # when calculating the lorenrz inner product,
         # -1 can become -0.99(no idea!), then arcosh will become nan
@@ -148,26 +151,37 @@ class Graph(Dataset):
         self.pairwise_matrix = pairwise_matrix
         self.n_items = len(pairwise_matrix)
         self.sample_size = sample_size
+        self.arange = np.arange(0, self.n_items)
 
     def __len__(self):
         return self.n_items
 
     def __getitem__(self, i):
-        I = torch.Tensor([i]).squeeze().long()
-        while True:
-            j = random.randint(0, self.n_items - 1)
-            if j != i:
-                break
+        I = torch.Tensor([i + 1]).squeeze().long()
+        has_child = self.pairwise_matrix[i].sum() > 0
+        arange = np.random.permutation(self.arange)
+        if has_child:
+            for j in arange:
+                if self.pairwise_matrix[i, j] > 0:  # assuming no self loop
+                    break
+        else:  # if no child go for parent
+            for j in arange:
+                if self.pairwise_matrix[j, i] > 0:  # assuming no disconneted nodes
+                    break
         min = self.pairwise_matrix[i, j]
-        indices = [
-            index
-            for index, is_less in enumerate(self.pairwise_matrix[i] < min)
-            if is_less
-        ][: self.sample_size]
-        # offset indices by 1 and pad with 0
+        arange = np.random.permutation(self.arange)
+        if has_child:
+            indices = [
+                x for x in arange if i != x and self.pairwise_matrix[i, x] < min
+            ][: self.sample_size]
+        else:
+            indices = [
+                x for x in arange if i != x and self.pairwise_matrix[x, i] < min
+            ][: self.sample_size]
         Ks = ([i + 1 for i in [j] + indices] + [0] * self.sample_size)[
             : self.sample_size
         ]
+        # print(I, Ks)
         return I, torch.Tensor(Ks).long()
 
 

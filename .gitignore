@@ -1,3 +1,5 @@
 images/
 logs/
+*.pyc
+*.swp
 runs/
