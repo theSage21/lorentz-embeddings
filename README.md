@@ -10,7 +10,6 @@ Usage
 Binary tree embedding and visualization.
 
 ```bash
-mkdir logs
 python lorentz.py bin_tree:mat  # run binary tree
 python lorentz.py --help
 ```
