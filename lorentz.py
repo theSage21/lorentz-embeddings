@@ -73,6 +73,7 @@ class RSGD(optim.Optimizer):
                 is_nan_inf = torch.isnan(update) | torch.isinf(update)
                 update = torch.where(is_nan_inf, p, update)
                 update = set_dim0(update)
+                update[0, :] = p[0, :]  # no love for embedding
                 p.data.copy_(update)
 
 
@@ -89,8 +90,8 @@ class Lorentz(nn.Module):
         nn.init.uniform_(self.table.weight, -init_range, init_range)
         # equation 6
         with torch.no_grad():
+            self.table.weight[0] = 5  # padding idx push it to corner
             set_dim0(self.table.weight)
-            # self.table.weight[0] = 0  # padding idx
 
     def forward(self, I, Ks):
         """
@@ -150,18 +151,30 @@ class Graph(Dataset):
 
     def __getitem__(self, i):
         I = torch.Tensor([i + 1]).squeeze().long()
-        for j in np.random.permutation(self.arange):
+        has_child = False
+        arange = np.random.permutation(self.arange)
+        for j in arange:
             if self.pairwise_matrix[i, j] > 0:  # assuming no self loop
+                has_child = True
                 break
+        if not has_child:  # if no child go for parent
+            for j in arange:
+                if self.pairwise_matrix[j, i] > 0:  # assuming no disconneted nodes
+                    break
         min = self.pairwise_matrix[i, j]
         arange = np.random.permutation(self.arange)
-        indices = [x for x in arange if self.pairwise_matrix[i, x] < min][
-            : self.sample_size
-        ]
+        if has_child:
+            indices = [
+                x for x in arange if self.pairwise_matrix[i, x] < min and i != x
+            ][: self.sample_size]
+        else:
+            indices = [
+                x for x in arange if self.pairwise_matrix[x, i] < min and i != x
+            ][: self.sample_size]
         Ks = ([i + 1 for i in [j] + indices] + [0] * self.sample_size)[
             : self.sample_size
         ]
-        # print(I, Ks)
+        print(I, Ks)
         return I, torch.Tensor(Ks).long()
 
 
