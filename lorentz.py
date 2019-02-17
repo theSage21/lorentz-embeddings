@@ -4,10 +4,16 @@ import random
 import numpy as np
 from torch import nn
 from torch import optim
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 from tqdm import trange, tqdm
 from datetime import datetime
 from tensorboardX import SummaryWriter
 from torch.utils.data import Dataset, DataLoader
+
+plt.style.use("ggplot")
 
 
 def arcosh(x):
@@ -202,11 +208,22 @@ if __name__ == "__main__":
     )
     parser.add_argument("-learning_rate", help="RSGD learning rate", default=0.1)
     parser.add_argument("-log_step", help="Log at what multiple of epochs?", default=1)
+    parser.add_argument(
+        "-plot_step", help="Plot at what multiple of epochs?", default=100
+    )
     parser.add_argument("-logdir", help="What folder to put logs in", default="runs")
+    parser.add_argument(
+        "-plotdir", help="What folder to put images in", default="images"
+    )
+    parser.add_argument(
+        "-plot_poincare", help="Should poincare projections be plotted?", default=True
+    )
     args = parser.parse_args()
     # ----------------------------------- get the correct matrix
     if not os.path.exists(args.logdir):
         os.mkdir(args.logdir)
+    if not os.path.exists(args.plotdir) and args.plot_poincare:
+        os.mkdir(args.plotdir)
     fl, obj = args.dataset.split(":")
 
     exec(f"from {fl} import {obj} as pairwise")
@@ -236,3 +253,8 @@ if __name__ == "__main__":
                 if torch.isnan(loss) or torch.isinf(loss):
                     break
             writer.add_scalar("loss", loss, epoch)
+            if args.plot_poincare and epoch % args.plot_step == 0:
+                table = net.lorentz_to_poincare()
+                writer.add_embedding(
+                    table, global_step=epoch, tag="poincare_projection"
+                )
