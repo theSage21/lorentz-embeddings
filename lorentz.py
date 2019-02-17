@@ -165,16 +165,16 @@ class Graph(Dataset):
         arange = np.random.permutation(self.arange)
         if has_child:
             indices = [
-                x for x in arange if self.pairwise_matrix[i, x] < min and i != x
+                x for x in arange if i != x and self.pairwise_matrix[i, x] < min
             ][: self.sample_size]
         else:
             indices = [
-                x for x in arange if self.pairwise_matrix[x, i] < min and i != x
+                x for x in arange if i != x and self.pairwise_matrix[x, i] < min
             ][: self.sample_size]
         Ks = ([i + 1 for i in [j] + indices] + [0] * self.sample_size)[
             : self.sample_size
         ]
-        print(I, Ks)
+        # print(I, Ks)
         return I, torch.Tensor(Ks).long()
 
 
