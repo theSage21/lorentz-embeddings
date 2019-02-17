@@ -12,6 +12,7 @@ Binary tree embedding and visualization.
 ```bash
 mkdir logs
 python lorentz.py bin_tree:mat  # run binary tree
+python lorentz.py --help
 ```
 
 To embed an arbitrary graph, create a file (say `mygraph.py`) and write code in

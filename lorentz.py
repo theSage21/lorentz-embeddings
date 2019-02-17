@@ -211,8 +211,7 @@ if __name__ == "__main__":
         with tqdm(ncols=80) as pbar:
             for I, Ks in dataloader:
                 rsgd.zero_grad()
-                loss = net(I, Ks)
-                loss = loss.mean()
+                loss = net(I, Ks).mean()
                 loss.backward()
                 rsgd.step()
                 pbar.set_description(f"Batch Loss: {float(loss)}")
