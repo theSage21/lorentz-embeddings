@@ -251,7 +251,8 @@ if __name__ == "__main__":
                 rsgd.step()
                 pbar.set_description(f"Batch Loss: {float(loss)}")
                 if torch.isnan(loss) or torch.isinf(loss):
-                    break
+                    pbar.set_description("NaN/Inf")
+                pbar.update(1)
             writer.add_scalar("loss", loss, epoch)
             if args.plot_poincare and epoch % args.plot_step == 0:
                 table = net.lorentz_to_poincare()
