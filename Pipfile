@@ -11,6 +11,7 @@ numpy = "*"
 scipy = "*"
 sklearn = "*"
 matplotlib = "*"
+pre-commit = "*"
 
 [dev-packages]
 
