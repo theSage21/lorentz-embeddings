@@ -158,26 +158,27 @@ class Graph(Dataset):
 
     def __getitem__(self, i):
         I = torch.Tensor([i + 1]).squeeze().long()
-        has_child = self.pairwise_matrix[i].sum() > 0
+        has_child = (self.pairwise_matrix[i] > 0).sum()
+        has_parent = (self.pairwise_matrix[:, i] > 0).sum()
         arange = np.random.permutation(self.arange)
         if has_child:
             for j in arange:
                 if self.pairwise_matrix[i, j] > 0:  # assuming no self loop
+                    min = self.pairwise_matrix[i, j]
                     break
-        else:  # if no child go for parent
+        elif has_parent:  # if no child go for parent
             for j in arange:
                 if self.pairwise_matrix[j, i] > 0:  # assuming no disconneted nodes
+                    min = self.pairwise_matrix[j, i]
                     break
-        min = self.pairwise_matrix[i, j]
+        else:
+            raise Exception(f"Node {i} has no parent and no child")
         arange = np.random.permutation(self.arange)
         if has_child:
-            indices = [
-                x for x in arange if i != x and self.pairwise_matrix[i, x] < min
-            ][: self.sample_size]
+            indices = [x for x in arange if i != x and self.pairwise_matrix[i, x] < min]
         else:
-            indices = [
-                x for x in arange if i != x and self.pairwise_matrix[x, i] < min
-            ][: self.sample_size]
+            indices = [x for x in arange if i != x and self.pairwise_matrix[x, i] < min]
+        indices = indices[: self.sample_size]
         Ks = ([i + 1 for i in [j] + indices] + [0] * self.sample_size)[
             : self.sample_size
         ]
