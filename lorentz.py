@@ -4,6 +4,7 @@ import numpy as np
 from torch import nn
 from torch import optim
 from tqdm import trange, tqdm
+from datetime import datetime
 from tensorboardX import SummaryWriter
 from torch.utils.data import Dataset, DataLoader
 
@@ -204,7 +205,7 @@ if __name__ == "__main__":
         args.n_items, args.poincare_dim + 1
     )  # as the paper follows R^(n+1) for this space
     rsgd = RSGD(net.parameters(), learning_rate=args.learning_rate)
-    writer = SummaryWriter(f"logs/{args.dataset}")
+    writer = SummaryWriter(f"logs/{args.dataset}  {datetime.utcnow()}")
 
     for epoch in trange(args.epochs, desc="Epochs", ncols=80):
         with tqdm(ncols=80) as pbar:
@@ -218,4 +219,3 @@ if __name__ == "__main__":
                 if torch.isnan(loss) or torch.isinf(loss):
                     break
             writer.add_scalar("loss", loss, epoch)
-            table = net.lorentz_to_poincare()
