@@ -43,7 +43,7 @@ def exp_map(x, v):
 
 
 def set_dim0(x):
-    dim0 = torch.sqrt(1 + torch.norm(x[:, 1:], dim=1))
+    dim0 = torch.sqrt(1 + torch.norm(x[:, 1:], dim=1) ** 2)
     x[:, 0] = dim0
     return x
 
