@@ -201,7 +201,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-burn_epochs",
         help="How many epochs to run the burn phase for?",
-        default=100,
+        default=10,
         type=int,
     )
     parser.add_argument(
@@ -226,7 +226,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "-n_items", help="How many items to embed?", default=None, type=int
     )
-    parser.add_argument("-learning_rate", help="RSGD learning rate", default=0.1)
+    parser.add_argument(
+        "-learning_rate", help="RSGD learning rate", default=0.1, type=float
+    )
     parser.add_argument("-log_step", help="Log at what multiple of epochs?", default=1)
     parser.add_argument("-logdir", help="What folder to put logs in", default="runs")
     parser.add_argument(
