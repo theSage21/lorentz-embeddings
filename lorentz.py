@@ -255,8 +255,3 @@ if __name__ == "__main__":
                     pbar.set_description("NaN/Inf")
                 pbar.update(1)
             writer.add_scalar("loss", loss, epoch)
-            if args.plot_poincare and epoch % args.plot_step == 0:
-                table = net.lorentz_to_poincare()
-                writer.add_embedding(
-                    table, global_step=epoch, tag="poincare_projection"
-                )
