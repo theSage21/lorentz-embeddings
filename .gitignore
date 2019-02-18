@@ -4,3 +4,4 @@ logs/
 *.swp
 runs/
 ckpt/
+embed.svg

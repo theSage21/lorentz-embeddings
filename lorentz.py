@@ -208,9 +208,6 @@ if __name__ == "__main__":
         "-plot", help="Plot the embeddings", default=False, action="store_true"
     )
     parser.add_argument(
-        "-plot_out_path", help="Where to put the plot?", default="embed.svg"
-    )
-    parser.add_argument(
         "-ckpt", help="Which checkpoint to use?", default=None, type=str
     )
     parser.add_argument(
@@ -261,11 +258,22 @@ if __name__ == "__main__":
         if args.ckpt is None:
             print("Please provide `-ckpt` when using `-plot`")
             sys.exit(1)
-        net.load_state_dict(torch.load(args.ckpt))
-        table = net.lorentz_to_poincare()
-        plt.scatter(table[:, 0], table[:, 1])
-        plt.savefig(args.plot_out_path)
-        plt.close()
+        if os.path.isdir(args.ckpt):
+            paths = [
+                os.path.join(args.ckpt, c)
+                for c in os.listdir(args.ckpt)
+                if c.endswith("ckpt")
+            ]
+        else:
+            paths = [args.ckpt]
+        for path in tqdm(paths, desc="Plotting"):
+            net.load_state_dict(torch.load(path))
+            table = net.lorentz_to_poincare()
+            # skip padding. plot x y
+            plt.scatter(table[1:, 0], table[1:, 1])
+            plt.title(path)
+            plt.savefig(f"{path}.svg")
+            plt.close()
         sys.exit(0)
 
     dataloader = DataLoader(
@@ -292,7 +300,7 @@ if __name__ == "__main__":
                 if epoch % args.save_step == 0:
                     torch.save(net.state_dict(), f"{args.savedir}/{epoch}.ckpt")
             epoch_bar.set_description(
-                f"BurnLoss: {float(loss)}"
+                f"🔥 Burn phase loss: {float(loss)}"
                 if epoch < args.burn_epochs
                 else f"Loss: {float(loss)}"
             )
