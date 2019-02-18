@@ -77,7 +77,7 @@ class RSGD(optim.Optimizer):
                     ).unsqueeze(1)
                     * p
                 )
-                print(p, lorentz_scalar_product(p, p))
+                # print(p, lorentz_scalar_product(p, p))
                 update = exp_map(p, -group["learning_rate"] * proj)
                 is_nan_inf = torch.isnan(update) | torch.isinf(update)
                 update = torch.where(is_nan_inf, p, update)
@@ -222,10 +222,11 @@ def recon(table, pair_mat):
         mask = torch.tensor([0.0] * len(table))
         mask[i] = 1
         mask = mask * -10000.0
-        dists = -lorentz_scalar_product(x, table) + mask
+        dists = lorentz_scalar_product(x, table) + mask
         dists = (
             dists.numpy()
         )  # arccosh is monotonically increasing, so no need of that here
+        # and no -dist also, as acosh in m i, -acosh(-l(x,y)) is nothing but l(x,y)
         # print(dists)
         predicted_parent = np.argmax(dists)
         actual_parent = np.argmax(pair_mat[:, i])
