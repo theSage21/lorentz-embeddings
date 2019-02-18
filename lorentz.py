@@ -209,22 +209,19 @@ if __name__ == "__main__":
     )
     parser.add_argument("-learning_rate", help="RSGD learning rate", default=0.1)
     parser.add_argument("-log_step", help="Log at what multiple of epochs?", default=1)
-    parser.add_argument(
-        "-plot_step", help="Plot at what multiple of epochs?", default=100
-    )
     parser.add_argument("-logdir", help="What folder to put logs in", default="runs")
     parser.add_argument(
-        "-plotdir", help="What folder to put images in", default="images"
+        "-save_step", help="Save at what multiple of epochs?", default=100
     )
     parser.add_argument(
-        "-plot_poincare", help="Should poincare projections be plotted?", default=True
+        "-savedir", help="What folder to put checkpoints in", default="ckpt"
     )
     args = parser.parse_args()
     # ----------------------------------- get the correct matrix
     if not os.path.exists(args.logdir):
         os.mkdir(args.logdir)
-    if not os.path.exists(args.plotdir) and args.plot_poincare:
-        os.mkdir(args.plotdir)
+    if not os.path.exists(args.savedir):
+        os.mkdir(args.savedir)
     fl, obj = args.dataset.split(":")
 
     exec(f"from {fl} import {obj} as pairwise")
@@ -255,3 +252,5 @@ if __name__ == "__main__":
                     pbar.set_description("NaN/Inf")
                 pbar.update(1)
             writer.add_scalar("loss", loss, epoch)
+            if epoch % args.save_step == 0:
+                torch.save(net.state_dict(), f"{args.savedir}/{epoch}.ckpt")

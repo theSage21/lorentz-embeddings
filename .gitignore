@@ -3,3 +3,4 @@ logs/
 *.pyc
 *.swp
 runs/
+ckpt/
