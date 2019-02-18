@@ -43,6 +43,7 @@ def exp_map(x, v):
 
 
 def set_dim0(x):
+    x = torch.renorm(x, 2, 0, 1e3)  # otherwise leaves will explode
     dim0 = torch.sqrt(1 + (x[:, 1:] ** 2).sum(dim=1))
     x[:, 0] = dim0
     return x
@@ -76,11 +77,12 @@ class RSGD(optim.Optimizer):
                     ).unsqueeze(1)
                     * p
                 )
+                print(p, lorentz_scalar_product(p, p))
                 update = exp_map(p, -group["learning_rate"] * proj)
                 is_nan_inf = torch.isnan(update) | torch.isinf(update)
                 update = torch.where(is_nan_inf, p, update)
-                update = set_dim0(update)
                 update[0, :] = p[0, :]  # no love for embedding
+                update = set_dim0(update)
                 p.data.copy_(update)
 
 
@@ -311,7 +313,7 @@ if __name__ == "__main__":
             writer.add_scalar("loss", loss, epoch)
             if args.plot_poincare and epoch % args.plot_step == 0:
                 table = net.lorentz_to_poincare()
-                # dikhaao(table, loss, epoch)
+                dikhaao(table, loss, epoch)
                 writer.add_scalar(
                     "recon_preform", recon(net.get_lorentz_table(), pairwise), epoch
                 )
