@@ -5,6 +5,7 @@ import numpy as np
 from torch import nn
 from torch import optim
 import matplotlib
+import sys
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -192,6 +193,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("dataset", help="File:pairwise_matrix")
     parser.add_argument(
+        "-plot", help="Plot the embeddings", default=False, action="store_true"
+    )
+    parser.add_argument(
+        "-plot_out_path", help="Where to put the plot?", default="embed.svg"
+    )
+    parser.add_argument(
+        "-ckpt", help="Which checkpoint to use?", default=None, type=str
+    )
+    parser.add_argument(
         "-sample_size", help="How many samples in the N matrix", default=10
     )
     parser.add_argument("-batch_size", help="How many samples in the batch", default=32)
@@ -225,18 +235,32 @@ if __name__ == "__main__":
     fl, obj = args.dataset.split(":")
 
     exec(f"from {fl} import {obj} as pairwise")
-    args.n_items = len(pairwise) if args.n_items is None else args.n_items
     pairwise = pairwise[: args.n_items, : args.n_items]
+    args.n_items = len(pairwise) if args.n_items is None else args.n_items
+
     # ---------------------------------- Generate the proper objects
+    net = Lorentz(
+        args.n_items, args.poincare_dim + 1
+    )  # as the paper follows R^(n+1) for this space
+    if args.plot:
+        if args.poincare_dim != 2:
+            print("Only embeddings with `-poincare_dim` = 2 are supported for now.")
+            sys.exit(1)
+        if args.ckpt is None:
+            print("Please provide `-ckpt` when using `-plot`")
+            sys.exit(1)
+        net.load_state_dict(torch.load(args.ckpt))
+        table = net.lorentz_to_poincare()
+        plt.scatter(table[:, 0], table[:, 1])
+        plt.savefig(args.plot_out_path)
+        plt.close()
+        sys.exit(0)
 
     dataloader = DataLoader(
         Graph(pairwise, args.sample_size),
         shuffle=args.shuffle,
         batch_size=args.batch_size,
     )
-    net = Lorentz(
-        args.n_items, args.poincare_dim + 1
-    )  # as the paper follows R^(n+1) for this space
     rsgd = RSGD(net.parameters(), learning_rate=args.learning_rate)
     writer = SummaryWriter(f"{args.logdir}/{args.dataset}  {datetime.utcnow()}")
 

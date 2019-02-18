@@ -10,8 +10,9 @@ Usage
 Binary tree embedding and visualization.
 
 ```bash
-python lorentz.py bin_tree:mat  # run binary tree
 python lorentz.py --help
+python lorentz.py bin_tree:mat  # run binary tree
+python lorentz.py bin_tree:mat -plot -ckpt ckpt/3000.ckpt  # plot the checkpoint's embeddings
 ```
 
 To embed an arbitrary graph, create a file (say `mygraph.py`) and write code in
