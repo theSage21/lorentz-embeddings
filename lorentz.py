@@ -6,12 +6,13 @@ from torch import nn
 from torch import optim
 import matplotlib
 
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from tqdm import trange, tqdm
 from datetime import datetime
 from tensorboardX import SummaryWriter
 from torch.utils.data import Dataset, DataLoader
+
+matplotlib.use("Agg")
 
 plt.style.use("ggplot")
 
@@ -42,7 +43,7 @@ def exp_map(x, v):
 
 
 def set_dim0(x):
-    dim0 = torch.sqrt(1 + torch.norm(x[:, 1:], dim=1))
+    dim0 = torch.sqrt(1 + (x[:, 1:] ** 2).sum(dim=1))
     x[:, 0] = dim0
     return x
 
@@ -75,7 +76,6 @@ class RSGD(optim.Optimizer):
                     ).unsqueeze(1)
                     * p
                 )
-                grad_norm = torch.norm(p.grad.data, dim=1).unsqueeze(1).repeat(1, D)
                 update = exp_map(p, -group["learning_rate"] * proj)
                 is_nan_inf = torch.isnan(update) | torch.isinf(update)
                 update = torch.where(is_nan_inf, p, update)
@@ -134,6 +134,7 @@ class Lorentz(nn.Module):
         # when calculating the lorenrz inner product,
         # -1 can become -0.99(no idea!), then arcosh will become nan
         dists = -arcosh(dists)
+        # print(dists)
         # ---------- turn back to per-sample shape
         dists = dists.reshape(B, N)
         loss = -(dists[:, 0] - torch.log(torch.exp(dists).sum(dim=1) + 1e-6))
@@ -147,6 +148,11 @@ class Lorentz(nn.Module):
 
     def get_lorentz_table(self):
         return self.table.weight.data.numpy()
+
+    def test_table(self):
+        x = self.table.weight.data
+        check = lorentz_scalar_product(x, x) + 1.0
+        return check.numpy().sum()
 
 
 class Graph(Dataset):
@@ -210,21 +216,18 @@ def recon(table, pair_mat):
     count = 0
     table = torch.tensor(table[1:])
     for i in range(1, len(pair_mat)):  # 0 padding, 1 root, we leave those two
-        x = (
-            torch.tensor(table[i])
-            .repeat(len(table))
-            .reshape([len(table), len(table[i])])
-        )
+        x = table[i].repeat(len(table)).reshape([len(table), len(table[i])])
         mask = torch.tensor([0.0] * len(table))
         mask[i] = 1
         mask = mask * -10000.0
-        dists = -lorentz_scalar_product(x, table)
+        dists = -lorentz_scalar_product(x, table) + mask
         dists = (
             dists.numpy()
         )  # arccosh is monotonically increasing, so no need of that here
+        # print(dists)
         predicted_parent = np.argmax(dists)
         actual_parent = np.argmax(pair_mat[:, i])
-        print(predicted_parent, actual_parent, i, end="\n\n")
+        # print(predicted_parent, actual_parent, i, end="\n\n")
         count += actual_parent == predicted_parent
     count = count / (len(pair_mat) - 1) * 100
     return count
@@ -238,7 +241,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "-sample_size", help="How many samples in the N matrix", default=5, type=int
     )
-    parser.add_argument("-batch_size", help="How many samples in the batch", default=32)
+    parser.add_argument(
+        "-batch_size", help="How many samples in the batch", default=32, type=int
+    )
     parser.add_argument(
         "-shuffle", help="Shuffle within batch while learning?", default=True
     )
@@ -254,7 +259,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "-n_items", help="How many items to embed?", default=None, type=int
     )
-    parser.add_argument("-learning_rate", help="RSGD learning rate", default=0.1)
+    parser.add_argument(
+        "-learning_rate", help="RSGD learning rate", default=0.1, type=float
+    )
     parser.add_argument("-log_step", help="Log at what multiple of epochs?", default=1)
     parser.add_argument(
         "-plot_step", help="Plot at what multiple of epochs?", default=100
@@ -304,7 +311,8 @@ if __name__ == "__main__":
             writer.add_scalar("loss", loss, epoch)
             if args.plot_poincare and epoch % args.plot_step == 0:
                 table = net.lorentz_to_poincare()
-                dikhaao(table, loss, epoch)
+                # dikhaao(table, loss, epoch)
                 writer.add_scalar(
                     "recon_preform", recon(net.get_lorentz_table(), pairwise), epoch
                 )
+                writer.add_scalar("table_test", net.test_table(), epoch)
