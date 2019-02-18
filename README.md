@@ -10,8 +10,16 @@ Usage
 Binary tree embedding and visualization.
 
 ```bash
-mkdir images
-python bin_tree.py
+python lorentz.py --help
+python lorentz.py bin_tree:mat  # run binary tree
+python lorentz.py bin_tree:mat -plot -ckpt ckpt/3000.ckpt  # plot the checkpoint's embeddings
 ```
 
-The final embedding for a binary tree in 2 dim. ![Final Embedding](final_binary_tree.svg)
+To embed an arbitrary graph, create a file (say `mygraph.py`) and write code in
+it to generate a pairwise similarity matrix. Take a look at the existing code
+if you need help. For example, the `bin_tree.py` file generates a numpy matrix
+called `mat`. Let's say your file also calls the matrix `mat`.
+
+Now you can simply call `python lorentz.py mygraph:mat` to embed your graph.
+
+You can use tensorboard to watch the progress with `tensorboard --logdir runs`.

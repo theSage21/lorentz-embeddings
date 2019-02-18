@@ -11,6 +11,11 @@ numpy = "*"
 scipy = "*"
 sklearn = "*"
 matplotlib = "*"
+pre-commit = "*"
+tensorflow = "*"
+tensorboardx = "*"
+seaborn = "*"
+pandas = "*"
 
 [dev-packages]
 
