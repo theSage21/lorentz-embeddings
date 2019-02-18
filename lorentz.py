@@ -145,6 +145,9 @@ class Lorentz(nn.Module):
             table[:, :1] + 1
         )  # diffeomorphism transform to poincare ball
 
+    def get_lorentz_table(self):
+        return self.table.weight.data.numpy()
+
 
 class Graph(Dataset):
     def __init__(self, pairwise_matrix, sample_size=10):
@@ -161,15 +164,15 @@ class Graph(Dataset):
         has_child = (self.pairwise_matrix[i] > 0).sum()
         has_parent = (self.pairwise_matrix[:, i] > 0).sum()
         arange = np.random.permutation(self.arange)
-        if has_child:
-            for j in arange:
-                if self.pairwise_matrix[i, j] > 0:  # assuming no self loop
-                    min = self.pairwise_matrix[i, j]
-                    break
-        elif has_parent:  # if no child go for parent
+        if has_parent:  # if no child go for parent
             for j in arange:
                 if self.pairwise_matrix[j, i] > 0:  # assuming no disconneted nodes
                     min = self.pairwise_matrix[j, i]
+                    break
+        elif has_child:
+            for j in arange:
+                if self.pairwise_matrix[i, j] > 0:  # assuming no self loop
+                    min = self.pairwise_matrix[i, j]
                     break
         else:
             raise Exception(f"Node {i} has no parent and no child")
@@ -186,13 +189,54 @@ class Graph(Dataset):
         return I, torch.Tensor(Ks).long()
 
 
+def dikhaao(table, loss, epoch):
+    layers = []
+    table = table[1:]
+    n_nodes = len(table)
+    plt.figure(figsize=(10, 7))
+    while sum([1 for layer in layers for node in layer]) < n_nodes:
+        limit = 4 ** len(layers)
+        layers.append(table[:limit])
+        table = table[limit:]
+        plt.scatter(*zip(*layers[-1]), label=f"Layer {len(layers) - 1}")
+    plt.title(f"{epoch}: N Nodes {n_nodes} Loss {float(loss)}")
+    plt.legend()
+    images = list(os.listdir("images"))
+    plt.savefig(f"images/{len(images)}.svg")
+    plt.close()
+
+
+def recon(table, pair_mat):
+    count = 0
+    table = torch.tensor(table[1:])
+    for i in range(1, len(pair_mat)):  # 0 padding, 1 root, we leave those two
+        x = (
+            torch.tensor(table[i])
+            .repeat(len(table))
+            .reshape([len(table), len(table[i])])
+        )
+        mask = torch.tensor([0.0] * len(table))
+        mask[i] = 1
+        mask = mask * -10000.0
+        dists = -lorentz_scalar_product(x, table)
+        dists = (
+            dists.numpy()
+        )  # arccosh is monotonically increasing, so no need of that here
+        predicted_parent = np.argmax(dists)
+        actual_parent = np.argmax(pair_mat[:, i])
+        print(predicted_parent, actual_parent, i, end="\n\n")
+        count += actual_parent == predicted_parent
+    count = count / (len(pair_mat) - 1) * 100
+    return count
+
+
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
     parser.add_argument("dataset", help="File:pairwise_matrix")
     parser.add_argument(
-        "-sample_size", help="How many samples in the N matrix", default=10
+        "-sample_size", help="How many samples in the N matrix", default=5, type=int
     )
     parser.add_argument("-batch_size", help="How many samples in the batch", default=32)
     parser.add_argument(
@@ -202,7 +246,10 @@ if __name__ == "__main__":
         "-epochs", help="How many epochs to optimize for?", default=1_000_000
     )
     parser.add_argument(
-        "-poincare_dim", help="Poincare projection time. Lorentz will be + 1", default=2
+        "-poincare_dim",
+        help="Poincare projection time. Lorentz will be + 1",
+        default=2,
+        type=int,
     )
     parser.add_argument(
         "-n_items", help="How many items to embed?", default=None, type=int
@@ -257,6 +304,7 @@ if __name__ == "__main__":
             writer.add_scalar("loss", loss, epoch)
             if args.plot_poincare and epoch % args.plot_step == 0:
                 table = net.lorentz_to_poincare()
-                writer.add_embedding(
-                    table, global_step=epoch, tag="poincare_projection"
+                dikhaao(table, loss, epoch)
+                writer.add_scalar(
+                    "recon_preform", recon(net.get_lorentz_table(), pairwise), epoch
                 )
