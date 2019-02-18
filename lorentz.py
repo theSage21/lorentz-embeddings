@@ -284,7 +284,8 @@ if __name__ == "__main__":
         batch_size=args.batch_size,
     )
     rsgd = RSGD(net.parameters(), learning_rate=args.learning_rate)
-    writer = SummaryWriter(f"{args.logdir}/{args.dataset}  {datetime.utcnow()}")
+    name = f"{args.dataset}  {datetime.utcnow()}"
+    writer = SummaryWriter(f"{args.logdir}/{name}")
 
     with tqdm(ncols=80) as epoch_bar:
         for epoch in range(args.epochs):
@@ -300,7 +301,7 @@ if __name__ == "__main__":
                     pbar.update(1)
                 writer.add_scalar("loss", loss, epoch)
                 if epoch % args.save_step == 0:
-                    torch.save(net.state_dict(), f"{args.savedir}/{epoch}.ckpt")
+                    torch.save(net.state_dict(), f"{args.savedir}/{epoch} {name}.ckpt")
             epoch_bar.set_description(
                 f"🔥 Burn phase loss: {float(loss)}"
                 if epoch < args.burn_epochs
