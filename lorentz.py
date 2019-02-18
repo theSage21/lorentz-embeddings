@@ -193,6 +193,18 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("dataset", help="File:pairwise_matrix")
     parser.add_argument(
+        "-burn_c",
+        help="Divide learning rate by this for the burn epochs",
+        default=10,
+        type=int,
+    )
+    parser.add_argument(
+        "-burn_epochs",
+        help="How many epochs to run the burn phase for?",
+        default=100,
+        type=int,
+    )
+    parser.add_argument(
         "-plot", help="Plot the embeddings", default=False, action="store_true"
     )
     parser.add_argument(
@@ -264,17 +276,24 @@ if __name__ == "__main__":
     rsgd = RSGD(net.parameters(), learning_rate=args.learning_rate)
     writer = SummaryWriter(f"{args.logdir}/{args.dataset}  {datetime.utcnow()}")
 
-    for epoch in trange(args.epochs, desc="Epochs", ncols=80):
-        with tqdm(ncols=80) as pbar:
-            for I, Ks in dataloader:
-                rsgd.zero_grad()
-                loss = net(I, Ks).mean()
-                loss.backward()
-                rsgd.step()
-                pbar.set_description(f"Batch Loss: {float(loss)}")
-                if torch.isnan(loss) or torch.isinf(loss):
-                    pbar.set_description("NaN/Inf")
-                pbar.update(1)
-            writer.add_scalar("loss", loss, epoch)
-            if epoch % args.save_step == 0:
-                torch.save(net.state_dict(), f"{args.savedir}/{epoch}.ckpt")
+    with tqdm(ncols=80) as epoch_bar:
+        for epoch in range(args.epochs):
+            with tqdm(ncols=80) as pbar:
+                for I, Ks in dataloader:
+                    rsgd.zero_grad()
+                    loss = net(I, Ks).mean()
+                    loss.backward()
+                    rsgd.step()
+                    pbar.set_description(f"Batch Loss: {float(loss)}")
+                    if torch.isnan(loss) or torch.isinf(loss):
+                        pbar.set_description("NaN/Inf")
+                    pbar.update(1)
+                writer.add_scalar("loss", loss, epoch)
+                if epoch % args.save_step == 0:
+                    torch.save(net.state_dict(), f"{args.savedir}/{epoch}.ckpt")
+            epoch_bar.set_description(
+                f"BurnLoss: {float(loss)}"
+                if epoch < args.burn_epochs
+                else f"Loss: {float(loss)}"
+            )
+            epoch_bar.update(1)
