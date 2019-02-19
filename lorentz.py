@@ -223,6 +223,13 @@ def recon(table, pair_mat):
     return count
 
 
+def _moon(count=[0]):
+    phases = "🌕🌖🌗🌘🌑🌒🌓🌔"
+    p = phases[count[0] % len(phases)]
+    count[0] += 1
+    return p
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -394,6 +401,6 @@ if __name__ == "__main__":
             epoch_bar.set_description(
                 f"🔥 Burn phase loss: {float(loss)}"
                 if epoch < args.burn_epochs
-                else f"Loss: {float(loss)}"
+                else _moon() + f"Loss: {float(loss)}"
             )
             epoch_bar.update(1)
