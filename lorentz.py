@@ -7,12 +7,13 @@ from torch import optim
 import matplotlib
 import sys
 
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from tqdm import trange, tqdm
 from datetime import datetime
 from tensorboardX import SummaryWriter
 from torch.utils.data import Dataset, DataLoader
+
+matplotlib.use("Agg")
 
 plt.style.use("ggplot")
 
@@ -43,7 +44,8 @@ def exp_map(x, v):
 
 
 def set_dim0(x):
-    dim0 = torch.sqrt(1 + torch.norm(x[:, 1:], dim=1) ** 2)
+    x = torch.renorm(x, p=2, dim=0, maxnorm=1e2)  # otherwise leaves will explode
+    dim0 = torch.sqrt(1 + (x[:, 1:] ** 2).sum(dim=1))
     x[:, 0] = dim0
     return x
 
@@ -76,12 +78,12 @@ class RSGD(optim.Optimizer):
                     ).unsqueeze(1)
                     * p
                 )
-                grad_norm = torch.norm(p.grad.data, dim=1).unsqueeze(1).repeat(1, D)
+                # print(p, lorentz_scalar_product(p, p))
                 update = exp_map(p, -group["learning_rate"] * proj)
                 is_nan_inf = torch.isnan(update) | torch.isinf(update)
                 update = torch.where(is_nan_inf, p, update)
+                update[0, :] = p[0, :]  # no ❤️  for embedding
                 update = set_dim0(update)
-                update[0, :] = p[0, :]  # no love for embedding
                 p.data.copy_(update)
 
 
@@ -135,6 +137,7 @@ class Lorentz(nn.Module):
         # when calculating the lorenrz inner product,
         # -1 can become -0.99(no idea!), then arcosh will become nan
         dists = -arcosh(dists)
+        # print(dists)
         # ---------- turn back to per-sample shape
         dists = dists.reshape(B, N)
         loss = -(dists[:, 0] - torch.log(torch.exp(dists).sum(dim=1) + 1e-6))
@@ -145,6 +148,14 @@ class Lorentz(nn.Module):
         return table[:, 1:] / (
             table[:, :1] + 1
         )  # diffeomorphism transform to poincare ball
+
+    def get_lorentz_table(self):
+        return self.table.weight.data.numpy()
+
+    def _test_table(self):
+        x = self.table.weight.data
+        check = lorentz_scalar_product(x, x) + 1.0
+        return check.numpy().sum()
 
 
 class Graph(Dataset):
@@ -162,15 +173,15 @@ class Graph(Dataset):
         has_child = (self.pairwise_matrix[i] > 0).sum()
         has_parent = (self.pairwise_matrix[:, i] > 0).sum()
         arange = np.random.permutation(self.arange)
-        if has_child:
-            for j in arange:
-                if self.pairwise_matrix[i, j] > 0:  # assuming no self loop
-                    min = self.pairwise_matrix[i, j]
-                    break
-        elif has_parent:  # if no child go for parent
+        if has_parent:  # if no child go for parent
             for j in arange:
                 if self.pairwise_matrix[j, i] > 0:  # assuming no disconneted nodes
                     min = self.pairwise_matrix[j, i]
+                    break
+        elif has_child:
+            for j in arange:
+                if self.pairwise_matrix[i, j] > 0:  # assuming no self loop
+                    min = self.pairwise_matrix[i, j]
                     break
         else:
             raise Exception(f"Node {i} has no parent and no child")
@@ -187,11 +198,57 @@ class Graph(Dataset):
         return I, torch.Tensor(Ks).long()
 
 
+def dikhaao(table, loss, epoch):
+    layers = []
+    table = table[1:]
+    n_nodes = len(table)
+    plt.figure(figsize=(10, 7))
+    while sum([1 for layer in layers for node in layer]) < n_nodes:
+        limit = 2 ** len(layers)
+        layers.append(table[:limit])
+        table = table[limit:]
+        plt.scatter(*zip(*layers[-1]), label=f"Layer {len(layers) - 1}")
+    plt.title(f"{epoch}: N Nodes {n_nodes} Loss {float(loss)}")
+    plt.legend()
+    images = list(os.listdir("images"))
+    plt.savefig(f"images/{len(images)}.svg")
+    plt.close()
+
+
+def recon(table, pair_mat):
+    "Reconstruction accuracy"
+    count = 0
+    table = torch.tensor(table[1:])
+    for i in range(1, len(pair_mat)):  # 0 padding, 1 root, we leave those two
+        x = table[i].repeat(len(table)).reshape([len(table), len(table[i])])  # N, D
+        mask = torch.tensor([0.0] * len(table))
+        mask[i] = 1
+        mask = mask * -10000.0
+        dists = lorentz_scalar_product(x, table) + mask
+        dists = (
+            dists.numpy()
+        )  # arccosh is monotonically increasing, so no need of that here
+        # and no -dist also, as acosh in m i, -acosh(-l(x,y)) is nothing but l(x,y)
+        # print(dists)
+        predicted_parent = np.argmax(dists)
+        actual_parent = np.argmax(pair_mat[:, i])
+        # print(predicted_parent, actual_parent, i, end="\n\n")
+        count += actual_parent == predicted_parent
+    count = count / (len(pair_mat) - 1) * 100
+    return count
+
+
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
     parser.add_argument("dataset", help="File:pairwise_matrix")
+    parser.add_argument(
+        "-sample_size", help="How many samples in the N matrix", default=5, type=int
+    )
+    parser.add_argument(
+        "-batch_size", help="How many samples in the batch", default=32, type=int
+    )
     parser.add_argument(
         "-burn_c",
         help="Divide learning rate by this for the burn epochs",
@@ -211,21 +268,24 @@ if __name__ == "__main__":
         "-ckpt", help="Which checkpoint to use?", default=None, type=str
     )
     parser.add_argument(
-        "-sample_size", help="How many samples in the N matrix", default=10
-    )
-    parser.add_argument("-batch_size", help="How many samples in the batch", default=32)
-    parser.add_argument(
         "-shuffle", help="Shuffle within batch while learning?", default=True
     )
     parser.add_argument(
         "-epochs", help="How many epochs to optimize for?", default=1_000_000
     )
     parser.add_argument(
-        "-poincare_dim", help="Poincare projection time. Lorentz will be + 1", default=2
+        "-poincare_dim",
+        help="Poincare projection time. Lorentz will be + 1",
+        default=2,
+        type=int,
     )
     parser.add_argument(
         "-n_items", help="How many items to embed?", default=None, type=int
     )
+    parser.add_argument(
+        "-learning_rate", help="RSGD learning rate", default=0.1, type=float
+    )
+    parser.add_argument("-log_step", help="Log at what multiple of epochs?", default=1)
     parser.add_argument(
         "-learning_rate", help="RSGD learning rate", default=0.1, type=float
     )
@@ -284,6 +344,7 @@ if __name__ == "__main__":
         batch_size=args.batch_size,
     )
     rsgd = RSGD(net.parameters(), learning_rate=args.learning_rate)
+
     name = f"{args.dataset}  {datetime.utcnow()}"
     writer = SummaryWriter(f"{args.logdir}/{name}")
 
@@ -300,6 +361,10 @@ if __name__ == "__main__":
                         pbar.set_description("NaN/Inf")
                     pbar.update(1)
                 writer.add_scalar("loss", loss, epoch)
+                writer.add_scalar(
+                    "recon_preform", recon(net.get_lorentz_table(), pairwise), epoch
+                )
+                writer.add_scalar("table_test", net._test_table(), epoch)
                 if epoch % args.save_step == 0:
                     torch.save(net.state_dict(), f"{args.savedir}/{epoch} {name}.ckpt")
             epoch_bar.set_description(
