@@ -261,6 +261,12 @@ if __name__ == "__main__":
         "-plot", help="Plot the embeddings", default=False, action="store_true"
     )
     parser.add_argument(
+        "-plot_graph",
+        help="Plot the Graph associated with the embeddings",
+        default=False,
+        action="store_true",
+    )
+    parser.add_argument(
         "-overwrite_plots",
         help="Overwrite the plots?",
         default=False,
@@ -365,12 +371,22 @@ if __name__ == "__main__":
             net.load_state_dict(torch.load(path))
             table = net.lorentz_to_poincare()
             # skip padding. plot x y
-            for edge in edges:
-                plt.plot(
-                    table[edge, 0], table[edge, 1], color="black", marker="o", alpha=0.5
-                )
-            # plt.scatter(table[1:, 0], table[1:, 1])
+            plt.figure(figsize=(10, 10))
+            if args.plot_graph:
+                for edge in edges:
+                    plt.plot(
+                        table[edge, 0],
+                        table[edge, 1],
+                        color="black",
+                        marker="o",
+                        alpha=0.5,
+                    )
+            else:
+                plt.scatter(table[1:, 0], table[1:, 1])
             plt.title(path)
+            plt.gca().set_xlim(-1, 1)
+            plt.gca().set_ylim(-1, 1)
+            plt.gca().add_artist(plt.Circle((0, 0), 1, fill=False, edgecolor="black"))
             plt.savefig(save_path)
             plt.close()
         sys.exit(0)
