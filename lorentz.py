@@ -6,6 +6,7 @@ import numpy as np
 from torch import nn
 from torch import optim
 from tqdm import trange, tqdm
+from collections import Counter
 from datetime import datetime
 from tensorboardX import SummaryWriter
 from torch.utils.data import Dataset, DataLoader
@@ -333,19 +334,27 @@ if __name__ == "__main__":
         else:
             paths = [args.ckpt]
         paths = list(sorted(paths))
-        edges = np.array(
-            [
-                tuple(edge)
-                for edge in set(
-                    [
-                        frozenset((a + 1, b + 1))
-                        for a, row in enumerate(pairwise > 0)
-                        for b, is_non_zero in enumerate(row)
-                        if is_non_zero
-                    ]
-                )
-            ]
+        edges = [
+            tuple(edge)
+            for edge in set(
+                [
+                    frozenset((a + 1, b + 1))
+                    for a, row in enumerate(pairwise > 0)
+                    for b, is_non_zero in enumerate(row)
+                    if is_non_zero
+                ]
+            )
+        ]
+        print(len(edges), "nodes")
+        internal_nodes = set(
+            node
+            for node, count in Counter(
+                [node for edge in edges for node in edge]
+            ).items()
+            if count > 1
         )
+        edges = np.array([edge for edge in edges if edge[1] in internal_nodes])
+        print(len(edges), "internal nodes")
         for path in tqdm(paths, desc="Plotting"):
             save_path = f"{path}.svg"
             if os.path.exists(save_path) and not args.overwrite_plots:
