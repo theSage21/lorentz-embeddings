@@ -301,11 +301,11 @@ if __name__ == "__main__":
         os.mkdir(args.logdir)
     if not os.path.exists(args.savedir):
         os.mkdir(args.savedir)
-    fl, obj = args.dataset.split(":")
 
-    exec(f"from {fl} import {obj} as pairwise")
+    exec(f"from datasets import {args.dataset} as pairwise")
     pairwise = pairwise[: args.n_items, : args.n_items]
     args.n_items = len(pairwise) if args.n_items is None else args.n_items
+    print(f"{args.n_items} being embedded")
 
     # ---------------------------------- Generate the proper objects
     net = Lorentz(

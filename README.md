@@ -11,18 +11,18 @@ Binary tree embedding and visualization.
 
 ```bash
 python lorentz.py --help
-python lorentz.py bin_tree:mat  # run binary tree
+python lorentz.py bin_mat  # run binary tree
 # plot the checkpoint's embeddings for all saved checkpoints
 # in poincare space
-python lorentz.py bin_tree:mat -plot -ckpt ckpt
+python lorentz.py bin_mat -plot -ckpt ckpt
 ```
 
 To embed an arbitrary graph
 
-1. Create a file (say `mygraph.py`) and write code in it to generate a pairwise similarity matrix. Take a look at the existing code if you need help. For example, the `bin_tree.py` file generates a numpy matrix called `mat`. Let's say your file also calls the matrix `mat`.
-2. Now you can simply call `python lorentz.py mygraph:mat` to embed your graph.
+1. Add a numpy matrix in the `datasets.py` file with a unique name (`my_graph` for example). This represents a directed adjacency matrix
+2. Now you can simply call `python lorentz.py my_graph` to embed your graph.
 3. You can use tensorboard to watch the progress with `tensorboard --logdir runs`.
-4. You can plot the embeddings using `python lorentz.py -plot -ckpt ckpt`
+4. You can plot the embeddings using `python lorentz.py my_graph -plot -ckpt ckpt`
 
 
 For anything else `python lorentz.py --help`
