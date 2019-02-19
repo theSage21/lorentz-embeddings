@@ -43,7 +43,7 @@ def exp_map(x, v):
 
 
 def set_dim0(x):
-    dim0 = torch.sqrt(1 + torch.norm(x[:, 1:], dim=1))
+    dim0 = torch.sqrt(1 + torch.norm(x[:, 1:], dim=1) ** 2)
     x[:, 0] = dim0
     return x
 
@@ -201,14 +201,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "-burn_epochs",
         help="How many epochs to run the burn phase for?",
-        default=100,
+        default=10,
         type=int,
     )
     parser.add_argument(
         "-plot", help="Plot the embeddings", default=False, action="store_true"
-    )
-    parser.add_argument(
-        "-plot_out_path", help="Where to put the plot?", default="embed.svg"
     )
     parser.add_argument(
         "-ckpt", help="Which checkpoint to use?", default=None, type=str
@@ -229,7 +226,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "-n_items", help="How many items to embed?", default=None, type=int
     )
-    parser.add_argument("-learning_rate", help="RSGD learning rate", default=0.1)
+    parser.add_argument(
+        "-learning_rate", help="RSGD learning rate", default=0.1, type=float
+    )
     parser.add_argument("-log_step", help="Log at what multiple of epochs?", default=1)
     parser.add_argument("-logdir", help="What folder to put logs in", default="runs")
     parser.add_argument(
@@ -261,11 +260,22 @@ if __name__ == "__main__":
         if args.ckpt is None:
             print("Please provide `-ckpt` when using `-plot`")
             sys.exit(1)
-        net.load_state_dict(torch.load(args.ckpt))
-        table = net.lorentz_to_poincare()
-        plt.scatter(table[:, 0], table[:, 1])
-        plt.savefig(args.plot_out_path)
-        plt.close()
+        if os.path.isdir(args.ckpt):
+            paths = [
+                os.path.join(args.ckpt, c)
+                for c in os.listdir(args.ckpt)
+                if c.endswith("ckpt")
+            ]
+        else:
+            paths = [args.ckpt]
+        for path in tqdm(paths, desc="Plotting"):
+            net.load_state_dict(torch.load(path))
+            table = net.lorentz_to_poincare()
+            # skip padding. plot x y
+            plt.scatter(table[1:, 0], table[1:, 1])
+            plt.title(path)
+            plt.savefig(f"{path}.svg")
+            plt.close()
         sys.exit(0)
 
     dataloader = DataLoader(
@@ -274,7 +284,8 @@ if __name__ == "__main__":
         batch_size=args.batch_size,
     )
     rsgd = RSGD(net.parameters(), learning_rate=args.learning_rate)
-    writer = SummaryWriter(f"{args.logdir}/{args.dataset}  {datetime.utcnow()}")
+    name = f"{args.dataset}  {datetime.utcnow()}"
+    writer = SummaryWriter(f"{args.logdir}/{name}")
 
     with tqdm(ncols=80) as epoch_bar:
         for epoch in range(args.epochs):
@@ -290,9 +301,9 @@ if __name__ == "__main__":
                     pbar.update(1)
                 writer.add_scalar("loss", loss, epoch)
                 if epoch % args.save_step == 0:
-                    torch.save(net.state_dict(), f"{args.savedir}/{epoch}.ckpt")
+                    torch.save(net.state_dict(), f"{args.savedir}/{epoch} {name}.ckpt")
             epoch_bar.set_description(
-                f"BurnLoss: {float(loss)}"
+                f"🔥 Burn phase loss: {float(loss)}"
                 if epoch < args.burn_epochs
                 else f"Loss: {float(loss)}"
             )
