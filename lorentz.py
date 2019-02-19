@@ -1,19 +1,19 @@
 import os
+import sys
 import torch
 import random
 import numpy as np
 from torch import nn
 from torch import optim
-import matplotlib
-import sys
-
-import matplotlib.pyplot as plt
 from tqdm import trange, tqdm
 from datetime import datetime
 from tensorboardX import SummaryWriter
 from torch.utils.data import Dataset, DataLoader
 
-matplotlib.use("Agg")
+import matplotlib
+
+matplotlib.use("Agg")  # this needs to come before other matplotlib imports
+import matplotlib.pyplot as plt
 
 plt.style.use("ggplot")
 
@@ -282,10 +282,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "-n_items", help="How many items to embed?", default=None, type=int
     )
-    parser.add_argument(
-        "-learning_rate", help="RSGD learning rate", default=0.1, type=float
-    )
-    parser.add_argument("-log_step", help="Log at what multiple of epochs?", default=1)
     parser.add_argument(
         "-learning_rate", help="RSGD learning rate", default=0.1, type=float
     )
