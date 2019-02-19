@@ -200,23 +200,6 @@ class Graph(Dataset):
         return I, torch.Tensor(Ks).long()
 
 
-def dikhaao(table, loss, epoch):
-    layers = []
-    table = table[1:]
-    n_nodes = len(table)
-    plt.figure(figsize=(10, 7))
-    while sum([1 for layer in layers for node in layer]) < n_nodes:
-        limit = 2 ** len(layers)
-        layers.append(table[:limit])
-        table = table[limit:]
-        plt.scatter(*zip(*layers[-1]), label=f"Layer {len(layers) - 1}")
-    plt.title(f"{epoch}: N Nodes {n_nodes} Loss {float(loss)}")
-    plt.legend()
-    images = list(os.listdir("images"))
-    plt.savefig(f"images/{len(images)}.svg")
-    plt.close()
-
-
 def recon(table, pair_mat):
     "Reconstruction accuracy"
     count = 0
@@ -270,10 +253,10 @@ if __name__ == "__main__":
         "-ckpt", help="Which checkpoint to use?", default=None, type=str
     )
     parser.add_argument(
-        "-shuffle", help="Shuffle within batch while learning?", default=True
+        "-shuffle", help="Shuffle within batch while learning?", default=True, type=bool
     )
     parser.add_argument(
-        "-epochs", help="How many epochs to optimize for?", default=1_000_000
+        "-epochs", help="How many epochs to optimize for?", default=1_000_000, type=int
     )
     parser.add_argument(
         "-poincare_dim",
@@ -287,13 +270,23 @@ if __name__ == "__main__":
     parser.add_argument(
         "-learning_rate", help="RSGD learning rate", default=0.1, type=float
     )
-    parser.add_argument("-log_step", help="Log at what multiple of epochs?", default=1)
-    parser.add_argument("-logdir", help="What folder to put logs in", default="runs")
     parser.add_argument(
-        "-save_step", help="Save at what multiple of epochs?", default=100
+        "-log_step", help="Log at what multiple of epochs?", default=1, type=int
     )
     parser.add_argument(
-        "-savedir", help="What folder to put checkpoints in", default="ckpt"
+        "-logdir", help="What folder to put logs in", default="runs", type=str
+    )
+    parser.add_argument(
+        "-save_step", help="Save at what multiple of epochs?", default=100, type=int
+    )
+    parser.add_argument(
+        "-savedir", help="What folder to put checkpoints in", default="ckpt", type=str
+    )
+    parser.add_argument(
+        "-loader_workers",
+        help="How many workers to generate tensors",
+        default=4,
+        type=int,
     )
     args = parser.parse_args()
     # ----------------------------------- get the correct matrix
@@ -326,11 +319,28 @@ if __name__ == "__main__":
             ]
         else:
             paths = [args.ckpt]
+        edges = np.array(
+            [
+                tuple(edge)
+                for edge in set(
+                    [
+                        frozenset((a + 1, b + 1))
+                        for a, row in enumerate(pairwise > 0)
+                        for b, is_non_zero in enumerate(row)
+                        if is_non_zero
+                    ]
+                )
+            ]
+        )
         for path in tqdm(paths, desc="Plotting"):
             net.load_state_dict(torch.load(path))
             table = net.lorentz_to_poincare()
             # skip padding. plot x y
-            plt.scatter(table[1:, 0], table[1:, 1])
+            for edge in edges:
+                plt.plot(
+                    table[edge, 0], table[edge, 1], color="black", marker="o", alpha=0.5
+                )
+            # plt.scatter(table[1:, 0], table[1:, 1])
             plt.title(path)
             plt.savefig(f"{path}.svg")
             plt.close()
@@ -340,6 +350,7 @@ if __name__ == "__main__":
         Graph(pairwise, args.sample_size),
         shuffle=args.shuffle,
         batch_size=args.batch_size,
+        num_workers=args.loader_workers,
     )
     rsgd = RSGD(net.parameters(), learning_rate=args.learning_rate)
 
