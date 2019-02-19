@@ -5,6 +5,7 @@ import numpy as np
 from torch import nn
 from torch import optim
 import matplotlib
+import sys
 
 import matplotlib.pyplot as plt
 from tqdm import trange, tqdm
@@ -249,6 +250,24 @@ if __name__ == "__main__":
         "-batch_size", help="How many samples in the batch", default=32, type=int
     )
     parser.add_argument(
+        "-burn_c",
+        help="Divide learning rate by this for the burn epochs",
+        default=10,
+        type=int,
+    )
+    parser.add_argument(
+        "-burn_epochs",
+        help="How many epochs to run the burn phase for?",
+        default=10,
+        type=int,
+    )
+    parser.add_argument(
+        "-plot", help="Plot the embeddings", default=False, action="store_true"
+    )
+    parser.add_argument(
+        "-ckpt", help="Which checkpoint to use?", default=None, type=str
+    )
+    parser.add_argument(
         "-shuffle", help="Shuffle within batch while learning?", default=True
     )
     parser.add_argument(
@@ -268,55 +287,89 @@ if __name__ == "__main__":
     )
     parser.add_argument("-log_step", help="Log at what multiple of epochs?", default=1)
     parser.add_argument(
-        "-plot_step", help="Plot at what multiple of epochs?", default=100
+        "-learning_rate", help="RSGD learning rate", default=0.1, type=float
     )
+    parser.add_argument("-log_step", help="Log at what multiple of epochs?", default=1)
     parser.add_argument("-logdir", help="What folder to put logs in", default="runs")
     parser.add_argument(
-        "-plotdir", help="What folder to put images in", default="images"
+        "-save_step", help="Save at what multiple of epochs?", default=100
     )
     parser.add_argument(
-        "-plot_poincare", help="Should poincare projections be plotted?", default=True
+        "-savedir", help="What folder to put checkpoints in", default="ckpt"
     )
     args = parser.parse_args()
     # ----------------------------------- get the correct matrix
     if not os.path.exists(args.logdir):
         os.mkdir(args.logdir)
-    if not os.path.exists(args.plotdir) and args.plot_poincare:
-        os.mkdir(args.plotdir)
+    if not os.path.exists(args.savedir):
+        os.mkdir(args.savedir)
     fl, obj = args.dataset.split(":")
 
     exec(f"from {fl} import {obj} as pairwise")
-    args.n_items = len(pairwise) if args.n_items is None else args.n_items
     pairwise = pairwise[: args.n_items, : args.n_items]
+    args.n_items = len(pairwise) if args.n_items is None else args.n_items
+
     # ---------------------------------- Generate the proper objects
+    net = Lorentz(
+        args.n_items, args.poincare_dim + 1
+    )  # as the paper follows R^(n+1) for this space
+    if args.plot:
+        if args.poincare_dim != 2:
+            print("Only embeddings with `-poincare_dim` = 2 are supported for now.")
+            sys.exit(1)
+        if args.ckpt is None:
+            print("Please provide `-ckpt` when using `-plot`")
+            sys.exit(1)
+        if os.path.isdir(args.ckpt):
+            paths = [
+                os.path.join(args.ckpt, c)
+                for c in os.listdir(args.ckpt)
+                if c.endswith("ckpt")
+            ]
+        else:
+            paths = [args.ckpt]
+        for path in tqdm(paths, desc="Plotting"):
+            net.load_state_dict(torch.load(path))
+            table = net.lorentz_to_poincare()
+            # skip padding. plot x y
+            plt.scatter(table[1:, 0], table[1:, 1])
+            plt.title(path)
+            plt.savefig(f"{path}.svg")
+            plt.close()
+        sys.exit(0)
 
     dataloader = DataLoader(
         Graph(pairwise, args.sample_size),
         shuffle=args.shuffle,
         batch_size=args.batch_size,
     )
-    net = Lorentz(
-        args.n_items, args.poincare_dim + 1
-    )  # as the paper follows R^(n+1) for this space
     rsgd = RSGD(net.parameters(), learning_rate=args.learning_rate)
-    writer = SummaryWriter(f"{args.logdir}/{args.dataset}  {datetime.utcnow()}")
 
-    for epoch in trange(args.epochs, desc="Epochs", ncols=80):
-        with tqdm(ncols=80) as pbar:
-            for I, Ks in dataloader:
-                rsgd.zero_grad()
-                loss = net(I, Ks).mean()
-                loss.backward()
-                rsgd.step()
-                pbar.set_description(f"Batch Loss: {float(loss)}")
-                if torch.isnan(loss) or torch.isinf(loss):
-                    pbar.set_description("NaN/Inf")
-                pbar.update(1)
-            writer.add_scalar("loss", loss, epoch)
-            if args.plot_poincare and epoch % args.plot_step == 0:
-                table = net.lorentz_to_poincare()
-                # dikhaao(table, loss, epoch)
+    name = f"{args.dataset}  {datetime.utcnow()}"
+    writer = SummaryWriter(f"{args.logdir}/{name}")
+
+    with tqdm(ncols=80) as epoch_bar:
+        for epoch in range(args.epochs):
+            with tqdm(ncols=80) as pbar:
+                for I, Ks in dataloader:
+                    rsgd.zero_grad()
+                    loss = net(I, Ks).mean()
+                    loss.backward()
+                    rsgd.step()
+                    pbar.set_description(f"Batch Loss: {float(loss)}")
+                    if torch.isnan(loss) or torch.isinf(loss):
+                        pbar.set_description("NaN/Inf")
+                    pbar.update(1)
+                writer.add_scalar("loss", loss, epoch)
                 writer.add_scalar(
                     "recon_preform", recon(net.get_lorentz_table(), pairwise), epoch
                 )
                 writer.add_scalar("table_test", net._test_table(), epoch)
+                if epoch % args.save_step == 0:
+                    torch.save(net.state_dict(), f"{args.savedir}/{epoch} {name}.ckpt")
+            epoch_bar.set_description(
+                f"🔥 Burn phase loss: {float(loss)}"
+                if epoch < args.burn_epochs
+                else f"Loss: {float(loss)}"
+            )
+            epoch_bar.update(1)
