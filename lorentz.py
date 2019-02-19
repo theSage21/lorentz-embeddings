@@ -43,7 +43,7 @@ def exp_map(x, v):
 
 
 def set_dim0(x):
-    x = torch.renorm(x, 2, 0, 1e3)  # otherwise leaves will explode
+    x = torch.renorm(x, 2, 0, 1e2)  # otherwise leaves will explode
     dim0 = torch.sqrt(1 + (x[:, 1:] ** 2).sum(dim=1))
     x[:, 0] = dim0
     return x
@@ -203,7 +203,7 @@ def dikhaao(table, loss, epoch):
     n_nodes = len(table)
     plt.figure(figsize=(10, 7))
     while sum([1 for layer in layers for node in layer]) < n_nodes:
-        limit = 4 ** len(layers)
+        limit = 2 ** len(layers)
         layers.append(table[:limit])
         table = table[limit:]
         plt.scatter(*zip(*layers[-1]), label=f"Layer {len(layers) - 1}")
