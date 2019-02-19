@@ -1,6 +1,8 @@
 import numpy as np
 
 
+print("Datasets Available")
+print("-" * 20)
 # ################### Binary Tree
 depth = 8
 N = sum(2 ** i for i in range(depth))
@@ -12,6 +14,7 @@ for i in range(N):
     mat[i, j] = 1
     mat[i, j + 1] = 1
 bin_mat = mat
+print("Binary Tree: bin_mat")
 
 
 # ################### Quad Tree
@@ -27,3 +30,5 @@ for i in range(N):
     mat[i, j + 2] = 1
     mat[i, j + 3] = 1
 quad_mat = mat
+print("Quad Tree: quad_mat")
+print("-" * 20)
