@@ -243,11 +243,17 @@ if __name__ == "__main__":
     parser.add_argument(
         "-burn_epochs",
         help="How many epochs to run the burn phase for?",
-        default=10,
+        default=100,
         type=int,
     )
     parser.add_argument(
         "-plot", help="Plot the embeddings", default=False, action="store_true"
+    )
+    parser.add_argument(
+        "-overwrite_plots",
+        help="Overwrite the plots?",
+        default=False,
+        action="store_true",
     )
     parser.add_argument(
         "-ckpt", help="Which checkpoint to use?", default=None, type=str
@@ -319,6 +325,7 @@ if __name__ == "__main__":
             ]
         else:
             paths = [args.ckpt]
+        paths = list(sorted(paths))
         edges = np.array(
             [
                 tuple(edge)
@@ -333,6 +340,9 @@ if __name__ == "__main__":
             ]
         )
         for path in tqdm(paths, desc="Plotting"):
+            save_path = f"{path}.svg"
+            if os.path.exists(save_path) and not args.overwrite_plots:
+                continue
             net.load_state_dict(torch.load(path))
             table = net.lorentz_to_poincare()
             # skip padding. plot x y
@@ -342,7 +352,7 @@ if __name__ == "__main__":
                 )
             # plt.scatter(table[1:, 0], table[1:, 1])
             plt.title(path)
-            plt.savefig(f"{path}.svg")
+            plt.savefig(save_path)
             plt.close()
         sys.exit(0)
 
