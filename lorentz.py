@@ -45,6 +45,8 @@ def exp_map(x, v):
 
 def set_dim0(x):
     x = torch.renorm(x, p=2, dim=0, maxnorm=1e2)  # otherwise leaves will explode
+    # NOTE: the paper does not mention the square part of the equation but if
+    # you try to derive it you get a square term in the equation
     dim0 = torch.sqrt(1 + (x[:, 1:] ** 2).sum(dim=1))
     x[:, 0] = dim0
     return x
@@ -346,6 +348,11 @@ if __name__ == "__main__":
 
     with tqdm(ncols=80) as epoch_bar:
         for epoch in range(args.epochs):
+            rsgd.learning_rate = (
+                args.learning_rate / args.burn_c
+                if epoch < args.burn_epochs
+                else args.learning_rate
+            )
             with tqdm(ncols=80) as pbar:
                 for I, Ks in dataloader:
                     rsgd.zero_grad()
