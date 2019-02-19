@@ -4,7 +4,7 @@ import numpy as np
 print("Datasets Available")
 print("-" * 20)
 # ################### Binary Tree
-depth = 8
+depth = 5
 N = sum(2 ** i for i in range(depth))
 mat = np.zeros((N, N))
 for i in range(N):

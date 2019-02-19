@@ -26,3 +26,8 @@ To embed an arbitrary graph
 
 
 For anything else `python lorentz.py --help`
+
+Examples
+--------
+
+![Binary Tree Embedding](embeddings/binary_tree.svg)

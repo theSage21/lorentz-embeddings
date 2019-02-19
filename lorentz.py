@@ -227,7 +227,8 @@ def recon(table, pair_mat):
 _moon_count = 0
 
 
-def _moon(phases="🌕🌖🌗🌘🌑🌒🌓🌔"):
+def _moon(loss, phases="🌕🌖🌗🌘🌑🌒🌓🌔"):
+    global _moon_count
     _moon_count += 1
     p = phases[_moon_count % 8]
     return f"{p} Loss: {float(loss)}"
@@ -385,30 +386,25 @@ if __name__ == "__main__":
     name = f"{args.dataset}  {datetime.utcnow()}"
     writer = SummaryWriter(f"{args.logdir}/{name}")
 
-    with tqdm(ncols=80) as epoch_bar:
+    with tqdm(ncols=80, mininterval=0.2) as epoch_bar:
         for epoch in range(args.epochs):
             rsgd.learning_rate = (
                 args.learning_rate / args.burn_c
                 if epoch < args.burn_epochs
                 else args.learning_rate
             )
-            with tqdm(ncols=80) as pbar:
-                for I, Ks in dataloader:
-                    rsgd.zero_grad()
-                    loss = net(I, Ks).mean()
-                    loss.backward()
-                    rsgd.step()
-                    pbar.set_description(f"Batch Loss: {float(loss)}")
-                    if torch.isnan(loss) or torch.isinf(loss):
-                        pbar.set_description("NaN/Inf")
-                    pbar.update(1)
-                writer.add_scalar("loss", loss, epoch)
-                writer.add_scalar(
-                    "recon_preform", recon(net.get_lorentz_table(), pairwise), epoch
-                )
-                writer.add_scalar("table_test", net._test_table(), epoch)
-                if epoch % args.save_step == 0:
-                    torch.save(net.state_dict(), f"{args.savedir}/{epoch} {name}.ckpt")
+            for I, Ks in dataloader:
+                rsgd.zero_grad()
+                loss = net(I, Ks).mean()
+                loss.backward()
+                rsgd.step()
+            writer.add_scalar("loss", loss, epoch)
+            writer.add_scalar(
+                "recon_preform", recon(net.get_lorentz_table(), pairwise), epoch
+            )
+            writer.add_scalar("table_test", net._test_table(), epoch)
+            if epoch % args.save_step == 0:
+                torch.save(net.state_dict(), f"{args.savedir}/{epoch} {name}.ckpt")
             epoch_bar.set_description(
                 f"🔥 Burn phase loss: {float(loss)}"
                 if epoch < args.burn_epochs
