@@ -30,4 +30,4 @@ For anything else `python lorentz.py --help`
 Examples
 --------
 
-![Binary Tree Embedding](embeddings/binary_tree.svg)
+![Binary Tree Embedding](embeddings/binary_tree.png)
