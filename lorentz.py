@@ -260,6 +260,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-plot", help="Plot the embeddings", default=False, action="store_true"
     )
+    parser.add_argument("-plot_size", help="Size of the plot", default=3, type=int)
     parser.add_argument(
         "-plot_graph",
         help="Plot the Graph associated with the embeddings",
@@ -371,7 +372,7 @@ if __name__ == "__main__":
             net.load_state_dict(torch.load(path))
             table = net.lorentz_to_poincare()
             # skip padding. plot x y
-            plt.figure(figsize=(10, 10))
+            plt.figure(figsize=(7, 7))
             if args.plot_graph:
                 for edge in edges:
                     plt.plot(
