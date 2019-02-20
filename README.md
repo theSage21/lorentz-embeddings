@@ -10,11 +10,19 @@ Usage
 Binary tree embedding and visualization.
 
 ```bash
+# See this for more options
 python lorentz.py --help
+
+
 python lorentz.py bin_mat  # run binary tree
+
+
 # plot the checkpoint's embeddings for all saved checkpoints
 # in poincare space
-python lorentz.py bin_mat -plot -ckpt ckpt
+python lorentz.py bin_mat -plot -ckpt ckpt  # plot only embeddings
+python lorentz.py bin_mat -plot -ckpt ckpt -plot_graph  # plot graph also
+python lorentz.py bin_mat -plot -ckpt ckpt -plot_graph  -overwrite_plots # overwrite plots
+python lorentz.py bin_mat -plot -ckpt ckpt -plot_graph  -plot_size 10 # make a large plot
 ```
 
 To embed an arbitrary graph
@@ -26,3 +34,8 @@ To embed an arbitrary graph
 
 
 For anything else `python lorentz.py --help`
+
+Examples
+--------
+
+![Binary Tree Embedding](embeddings/binary_tree.png)

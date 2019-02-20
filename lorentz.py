@@ -6,6 +6,7 @@ import numpy as np
 from torch import nn
 from torch import optim
 from tqdm import trange, tqdm
+from collections import Counter
 from datetime import datetime
 from tensorboardX import SummaryWriter
 from torch.utils.data import Dataset, DataLoader
@@ -200,23 +201,6 @@ class Graph(Dataset):
         return I, torch.Tensor(Ks).long()
 
 
-def dikhaao(table, loss, epoch):
-    layers = []
-    table = table[1:]
-    n_nodes = len(table)
-    plt.figure(figsize=(10, 7))
-    while sum([1 for layer in layers for node in layer]) < n_nodes:
-        limit = 2 ** len(layers)
-        layers.append(table[:limit])
-        table = table[limit:]
-        plt.scatter(*zip(*layers[-1]), label=f"Layer {len(layers) - 1}")
-    plt.title(f"{epoch}: N Nodes {n_nodes} Loss {float(loss)}")
-    plt.legend()
-    images = list(os.listdir("images"))
-    plt.savefig(f"images/{len(images)}.svg")
-    plt.close()
-
-
 def recon(table, pair_mat):
     "Reconstruction accuracy"
     count = 0
@@ -240,6 +224,16 @@ def recon(table, pair_mat):
     return count
 
 
+_moon_count = 0
+
+
+def _moon(loss, phases="🌕🌖🌗🌘🌑🌒🌓🌔"):
+    global _moon_count
+    _moon_count += 1
+    p = phases[_moon_count % 8]
+    return f"{p} Loss: {float(loss)}"
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -260,20 +254,33 @@ if __name__ == "__main__":
     parser.add_argument(
         "-burn_epochs",
         help="How many epochs to run the burn phase for?",
-        default=10,
+        default=100,
         type=int,
     )
     parser.add_argument(
         "-plot", help="Plot the embeddings", default=False, action="store_true"
     )
+    parser.add_argument("-plot_size", help="Size of the plot", default=3, type=int)
+    parser.add_argument(
+        "-plot_graph",
+        help="Plot the Graph associated with the embeddings",
+        default=False,
+        action="store_true",
+    )
+    parser.add_argument(
+        "-overwrite_plots",
+        help="Overwrite the plots?",
+        default=False,
+        action="store_true",
+    )
     parser.add_argument(
         "-ckpt", help="Which checkpoint to use?", default=None, type=str
     )
     parser.add_argument(
-        "-shuffle", help="Shuffle within batch while learning?", default=True
+        "-shuffle", help="Shuffle within batch while learning?", default=True, type=bool
     )
     parser.add_argument(
-        "-epochs", help="How many epochs to optimize for?", default=1_000_000
+        "-epochs", help="How many epochs to optimize for?", default=1_000_000, type=int
     )
     parser.add_argument(
         "-poincare_dim",
@@ -287,13 +294,23 @@ if __name__ == "__main__":
     parser.add_argument(
         "-learning_rate", help="RSGD learning rate", default=0.1, type=float
     )
-    parser.add_argument("-log_step", help="Log at what multiple of epochs?", default=1)
-    parser.add_argument("-logdir", help="What folder to put logs in", default="runs")
     parser.add_argument(
-        "-save_step", help="Save at what multiple of epochs?", default=100
+        "-log_step", help="Log at what multiple of epochs?", default=1, type=int
     )
     parser.add_argument(
-        "-savedir", help="What folder to put checkpoints in", default="ckpt"
+        "-logdir", help="What folder to put logs in", default="runs", type=str
+    )
+    parser.add_argument(
+        "-save_step", help="Save at what multiple of epochs?", default=100, type=int
+    )
+    parser.add_argument(
+        "-savedir", help="What folder to put checkpoints in", default="ckpt", type=str
+    )
+    parser.add_argument(
+        "-loader_workers",
+        help="How many workers to generate tensors",
+        default=4,
+        type=int,
     )
     args = parser.parse_args()
     # ----------------------------------- get the correct matrix
@@ -326,13 +343,52 @@ if __name__ == "__main__":
             ]
         else:
             paths = [args.ckpt]
+        paths = list(sorted(paths))
+        edges = [
+            tuple(edge)
+            for edge in set(
+                [
+                    frozenset((a + 1, b + 1))
+                    for a, row in enumerate(pairwise > 0)
+                    for b, is_non_zero in enumerate(row)
+                    if is_non_zero
+                ]
+            )
+        ]
+        print(len(edges), "nodes")
+        internal_nodes = set(
+            node
+            for node, count in Counter(
+                [node for edge in edges for node in edge]
+            ).items()
+            if count > 1
+        )
+        edges = np.array([edge for edge in edges if edge[1] in internal_nodes])
+        print(len(edges), "internal nodes")
         for path in tqdm(paths, desc="Plotting"):
+            save_path = f"{path}.svg"
+            if os.path.exists(save_path) and not args.overwrite_plots:
+                continue
             net.load_state_dict(torch.load(path))
             table = net.lorentz_to_poincare()
             # skip padding. plot x y
-            plt.scatter(table[1:, 0], table[1:, 1])
+            plt.figure(figsize=(7, 7))
+            if args.plot_graph:
+                for edge in edges:
+                    plt.plot(
+                        table[edge, 0],
+                        table[edge, 1],
+                        color="black",
+                        marker="o",
+                        alpha=0.5,
+                    )
+            else:
+                plt.scatter(table[1:, 0], table[1:, 1])
             plt.title(path)
-            plt.savefig(f"{path}.svg")
+            plt.gca().set_xlim(-1, 1)
+            plt.gca().set_ylim(-1, 1)
+            plt.gca().add_artist(plt.Circle((0, 0), 1, fill=False, edgecolor="black"))
+            plt.savefig(save_path)
             plt.close()
         sys.exit(0)
 
@@ -340,39 +396,35 @@ if __name__ == "__main__":
         Graph(pairwise, args.sample_size),
         shuffle=args.shuffle,
         batch_size=args.batch_size,
+        num_workers=args.loader_workers,
     )
     rsgd = RSGD(net.parameters(), learning_rate=args.learning_rate)
 
     name = f"{args.dataset}  {datetime.utcnow()}"
     writer = SummaryWriter(f"{args.logdir}/{name}")
 
-    with tqdm(ncols=80) as epoch_bar:
+    with tqdm(ncols=80, mininterval=0.2) as epoch_bar:
         for epoch in range(args.epochs):
             rsgd.learning_rate = (
                 args.learning_rate / args.burn_c
                 if epoch < args.burn_epochs
                 else args.learning_rate
             )
-            with tqdm(ncols=80) as pbar:
-                for I, Ks in dataloader:
-                    rsgd.zero_grad()
-                    loss = net(I, Ks).mean()
-                    loss.backward()
-                    rsgd.step()
-                    pbar.set_description(f"Batch Loss: {float(loss)}")
-                    if torch.isnan(loss) or torch.isinf(loss):
-                        pbar.set_description("NaN/Inf")
-                    pbar.update(1)
-                writer.add_scalar("loss", loss, epoch)
-                writer.add_scalar(
-                    "recon_preform", recon(net.get_lorentz_table(), pairwise), epoch
-                )
-                writer.add_scalar("table_test", net._test_table(), epoch)
-                if epoch % args.save_step == 0:
-                    torch.save(net.state_dict(), f"{args.savedir}/{epoch} {name}.ckpt")
+            for I, Ks in dataloader:
+                rsgd.zero_grad()
+                loss = net(I, Ks).mean()
+                loss.backward()
+                rsgd.step()
+            writer.add_scalar("loss", loss, epoch)
+            writer.add_scalar(
+                "recon_preform", recon(net.get_lorentz_table(), pairwise), epoch
+            )
+            writer.add_scalar("table_test", net._test_table(), epoch)
+            if epoch % args.save_step == 0:
+                torch.save(net.state_dict(), f"{args.savedir}/{epoch} {name}.ckpt")
             epoch_bar.set_description(
                 f"🔥 Burn phase loss: {float(loss)}"
                 if epoch < args.burn_epochs
-                else f"Loss: {float(loss)}"
+                else _moon(loss)
             )
             epoch_bar.update(1)

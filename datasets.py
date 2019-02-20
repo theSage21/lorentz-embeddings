@@ -4,7 +4,7 @@ import numpy as np
 print("Datasets Available")
 print("-" * 20)
 # ################### Binary Tree
-depth = 8
+depth = 5
 N = sum(2 ** i for i in range(depth))
 mat = np.zeros((N, N))
 for i in range(N):
@@ -13,12 +13,12 @@ for i in range(N):
         break
     mat[i, j] = 1
     mat[i, j + 1] = 1
-bin_mat = mat
-print("Binary Tree: bin_mat")
+binary_tree = mat
+print("Binary Tree      : binary_tree")
 
 
 # ################### Quad Tree
-depth = 5
+depth = 4
 N = sum(4 ** i for i in range(depth))
 mat = np.zeros((N, N))
 for i in range(N):
@@ -29,6 +29,6 @@ for i in range(N):
     mat[i, j + 1] = 1
     mat[i, j + 2] = 1
     mat[i, j + 3] = 1
-quad_mat = mat
-print("Quad Tree: quad_mat")
+quad_tree = mat
+print("Quad Tree        : quad_tree")
 print("-" * 20)
