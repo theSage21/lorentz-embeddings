@@ -18,7 +18,7 @@ print("Binary Tree      : binary_tree")
 
 
 # ################### Quad Tree
-depth = 5
+depth = 4
 N = sum(4 ** i for i in range(depth))
 mat = np.zeros((N, N))
 for i in range(N):
