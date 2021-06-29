@@ -71,7 +71,7 @@ class RSGD(optim.Optimizer):
                 gl = torch.eye(D, device=p.device, dtype=p.dtype)
                 gl[0, 0] = -1
                 grad_norm = torch.norm(p.grad.data)
-                grad_norm = torch.where(grad_norm > 1, grad_norm, torch.tensor(1.0))
+                grad_norm = torch.where(grad_norm > 1, grad_norm, torch.tensor(1.0).to(p.device))
                 # only normalize if global grad_norm is more than 1
                 h = (p.grad.data / grad_norm) @ gl
                 proj = (
@@ -147,18 +147,18 @@ class Lorentz(nn.Module):
         return loss
 
     def lorentz_to_poincare(self):
-        table = self.table.weight.data.numpy()
+        table = self.table.weight.data.cpu().numpy()
         return table[:, 1:] / (
             table[:, :1] + 1
         )  # diffeomorphism transform to poincare ball
 
     def get_lorentz_table(self):
-        return self.table.weight.data.numpy()
+        return self.table.weight.data.cpu().numpy()
 
     def _test_table(self):
         x = self.table.weight.data
         check = lorentz_scalar_product(x, x) + 1.0
-        return check.numpy().sum()
+        return check.cpu().numpy().sum()
 
 
 class Graph(Dataset):
@@ -167,34 +167,42 @@ class Graph(Dataset):
         self.n_items = len(pairwise_matrix)
         self.sample_size = sample_size
         self.arange = np.arange(0, self.n_items)
+        self.cnter = 0
 
     def __len__(self):
         return self.n_items
 
     def __getitem__(self, i):
+        self.cnter = (self.cnter + 1) % self.sample_size
         I = torch.Tensor([i + 1]).squeeze().long()
         has_child = (self.pairwise_matrix[i] > 0).sum()
         has_parent = (self.pairwise_matrix[:, i] > 0).sum()
-        arange = np.random.permutation(self.arange)
+        if self.cnter == 0:
+            arange = np.random.permutation(self.arange)
+        else:
+            arange = self.arange
+
         if has_parent:  # if no child go for parent
-            for j in arange:
-                if self.pairwise_matrix[j, i] > 0:  # assuming no disconneted nodes
-                    min = self.pairwise_matrix[j, i]
-                    break
+            valid_idxs = arange[self.pairwise_matrix[arange, i] > 0]
+            j = valid_idxs[0]
+            min = self.pairwise_matrix[j,i]
         elif has_child:
-            for j in arange:
-                if self.pairwise_matrix[i, j] > 0:  # assuming no self loop
-                    min = self.pairwise_matrix[i, j]
-                    break
+            valid_idxs = arange[self.pairwise_matrix[i, arange] > 0]
+            j = valid_idxs[0]
+            min = self.pairwise_matrix[i,j]
         else:
             raise Exception(f"Node {i} has no parent and no child")
-        arange = np.random.permutation(self.arange)
+        indices = arange
+        indices = indices[indices != i]
         if has_child:
-            indices = [x for x in arange if i != x and self.pairwise_matrix[i, x] < min]
+            indices = indices[self.pairwise_matrix[i,indices] < min]
         else:
-            indices = [x for x in arange if i != x and self.pairwise_matrix[x, i] < min]
+            indices = indices[self.pairwise_matrix[indices, i] < min]
+
         indices = indices[: self.sample_size]
-        Ks = ([i + 1 for i in [j] + indices] + [0] * self.sample_size)[
+        #print(indices)
+        #raise NotImplementedError()
+        Ks = np.concatenate([[j], indices, np.zeros(self.sample_size)])[
             : self.sample_size
         ]
         # print(I, Ks)
@@ -212,7 +220,7 @@ def recon(table, pair_mat):
         mask = mask * -10000.0
         dists = lorentz_scalar_product(x, table) + mask
         dists = (
-            dists.numpy()
+            dists.cpu().numpy()
         )  # arccosh is monotonically increasing, so no need of that here
         # and no -dist also, as acosh in m i, -acosh(-l(x,y)) is nothing but l(x,y)
         # print(dists)
@@ -308,9 +316,14 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "-loader_workers",
-        help="How many workers to generate tensors",
+        help="how many workers to generate tensors",
         default=4,
         type=int,
+    )
+
+    parser.add_argument(
+        "-device",
+        default='cuda'
     )
     args = parser.parse_args()
     # ----------------------------------- get the correct matrix
@@ -327,7 +340,7 @@ if __name__ == "__main__":
     # ---------------------------------- Generate the proper objects
     net = Lorentz(
         args.n_items, args.poincare_dim + 1
-    )  # as the paper follows R^(n+1) for this space
+    ).to(args.device)  # as the paper follows R^(n+1) for this space
     if args.plot:
         if args.poincare_dim != 2:
             print("Only embeddings with `-poincare_dim` = 2 are supported for now.")
@@ -403,7 +416,7 @@ if __name__ == "__main__":
     name = f"{args.dataset}  {datetime.utcnow()}"
     writer = SummaryWriter(f"{args.logdir}/{name}")
 
-    with tqdm(ncols=80, mininterval=0.2) as epoch_bar:
+    with tqdm(ncols=80, mininterval=0.2, total=args.epochs) as epoch_bar:
         for epoch in range(args.epochs):
             rsgd.learning_rate = (
                 args.learning_rate / args.burn_c
@@ -411,6 +424,8 @@ if __name__ == "__main__":
                 else args.learning_rate
             )
             for I, Ks in dataloader:
+                I = I.to(args.device)
+                Ks = Ks.to(args.device)
                 rsgd.zero_grad()
                 loss = net(I, Ks).mean()
                 loss.backward()
