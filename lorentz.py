@@ -10,6 +10,7 @@ from collections import Counter
 from datetime import datetime
 from tensorboardX import SummaryWriter
 from torch.utils.data import Dataset, DataLoader
+import datasets
 
 import matplotlib
 
@@ -162,18 +163,19 @@ class Lorentz(nn.Module):
 
 
 class Graph(Dataset):
-    def __init__(self, pairwise_matrix, sample_size=10):
+    def __init__(self, pairwise_matrix, batch_size, sample_size=10):
         self.pairwise_matrix = pairwise_matrix
-        self.n_items = len(pairwise_matrix)
+        self.n_items = pairwise_matrix.shape[0]
         self.sample_size = sample_size
         self.arange = np.arange(0, self.n_items)
         self.cnter = 0
+        self.batch_size = batch_size
 
     def __len__(self):
         return self.n_items
 
     def __getitem__(self, i):
-        self.cnter = (self.cnter + 1) % self.sample_size
+        self.cnter = (self.cnter + 1) % self.batch_size
         I = torch.Tensor([i + 1]).squeeze().long()
         has_child = (self.pairwise_matrix[i] > 0).sum()
         has_parent = (self.pairwise_matrix[:, i] > 0).sum()
@@ -183,11 +185,11 @@ class Graph(Dataset):
             arange = self.arange
 
         if has_parent:  # if no child go for parent
-            valid_idxs = arange[self.pairwise_matrix[arange, i] > 0]
+            valid_idxs = arange[self.pairwise_matrix[arange, i].nonzero()[0]]
             j = valid_idxs[0]
             min = self.pairwise_matrix[j,i]
         elif has_child:
-            valid_idxs = arange[self.pairwise_matrix[i, arange] > 0]
+            valid_idxs = arange[self.pairwise_matrix[i, arange].nonzero()[1]]
             j = valid_idxs[0]
             min = self.pairwise_matrix[i,j]
         else:
@@ -195,9 +197,9 @@ class Graph(Dataset):
         indices = arange
         indices = indices[indices != i]
         if has_child:
-            indices = indices[self.pairwise_matrix[i,indices] < min]
+            indices = indices[(self.pairwise_matrix[i,indices] < min).nonzero()[0]]
         else:
-            indices = indices[self.pairwise_matrix[indices, i] < min]
+            indices = indices[(self.pairwise_matrix[indices, i] < min).nonzero()[1]]
 
         indices = indices[: self.sample_size]
         #print(indices)
@@ -213,7 +215,8 @@ def recon(table, pair_mat):
     "Reconstruction accuracy"
     count = 0
     table = torch.tensor(table[1:])
-    for i in range(1, len(pair_mat)):  # 0 padding, 1 root, we leave those two
+    n = pair_mat.shape[0]
+    for i in range(1, n):  # 0 padding, 1 root, we leave those two
         x = table[i].repeat(len(table)).reshape([len(table), len(table[i])])  # N, D
         mask = torch.tensor([0.0] * len(table))
         mask[i] = 1
@@ -228,7 +231,7 @@ def recon(table, pair_mat):
         actual_parent = np.argmax(pair_mat[:, i])
         # print(predicted_parent, actual_parent, i, end="\n\n")
         count += actual_parent == predicted_parent
-    count = count / (len(pair_mat) - 1) * 100
+    count = count / (pair_mat.shape[0] - 1) * 100
     return count
 
 
@@ -332,9 +335,9 @@ if __name__ == "__main__":
     if not os.path.exists(args.savedir):
         os.mkdir(args.savedir)
 
-    exec(f"from datasets import {args.dataset} as pairwise")
+    pairwise = datasets.datasets[args.dataset]
     pairwise = pairwise[: args.n_items, : args.n_items]
-    args.n_items = len(pairwise) if args.n_items is None else args.n_items
+    args.n_items = pairwise.shape[0] if args.n_items is None else args.n_items
     print(f"{args.n_items} being embedded")
 
     # ---------------------------------- Generate the proper objects
@@ -406,7 +409,7 @@ if __name__ == "__main__":
         sys.exit(0)
 
     dataloader = DataLoader(
-        Graph(pairwise, args.sample_size),
+        Graph(pairwise, args.sample_size, args.batch_size),
         shuffle=args.shuffle,
         batch_size=args.batch_size,
         num_workers=args.loader_workers,
