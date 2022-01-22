@@ -9,6 +9,8 @@ A pytorch implementation of [Learning Continuous Hierarchies in the Lorentz Mode
 An example of a binary tree being embedded in the Lorentz space and then visualized using Poincaré space.
 ![Binary Tree Embedding](embeddings/binary_tree.png)
 
+**NOTE** :  [@lambdaofgod](https://github.com/lambdaofgod) has generously ported this work to use sparse matrices and a bunch of other nice things! Go check out the PR at https://github.com/theSage21/lorentz-embeddings/pull/15 . We haven't merged that work since it does not have updated examples. If you have the time please go ahead and submit a PR to either their repo or this one.
+
 Usage
 -----
 
